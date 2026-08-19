@@ -66,6 +66,15 @@
   .header-left h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; line-height: 1; }
   .header-left .subtitle { font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-top: 6px; letter-spacing: 0.05em; }
 
+  .pending-badge {
+    background: rgba(251,146,60,0.15); border: 1px solid rgba(251,146,60,0.4);
+    color: #fb923c; font-family: var(--mono); font-size: 11px; padding: 6px 12px;
+    border-radius: 20px; cursor: pointer; letter-spacing: 0.03em;
+    animation: pulse-pending 2s ease-in-out infinite;
+  }
+  .pending-badge.syncing { animation: none; opacity: 0.6; pointer-events: none; }
+  @keyframes pulse-pending { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
   .tabs { padding: 0 24px; display: flex; gap: 8px; margin-bottom: 28px; }
 
   .tab {
@@ -241,6 +250,9 @@
     <div class="header-left">
       <h1>Cashflow</h1>
       <div class="subtitle" id="today-label">— — —</div>
+    </div>
+    <div class="pending-badge" id="pending-badge" onclick="syncQueue()" style="display:none;">
+      <span id="pending-count">0</span> pending
     </div>
   </div>
 
@@ -444,6 +456,7 @@ window.onload = () => {
     today.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
   switchSheet('Cash');
   renderHistory();
+  renderPendingBadge();
 };
 
 // ── Sheet switching ────────────────────────────────────────────────────────────
@@ -558,6 +571,71 @@ function onSubChange() {
   }
 }
 
+// ── Offline Queue ─────────────────────────────────────────────────────────────
+
+let queue = JSON.parse(localStorage.getItem('cf_queue') || '[]');
+
+function saveQueue() {
+  localStorage.setItem('cf_queue', JSON.stringify(queue));
+  renderPendingBadge();
+}
+
+function renderPendingBadge() {
+  const badge = document.getElementById('pending-badge');
+  const count = document.getElementById('pending-count');
+  if (queue.length > 0) {
+    count.textContent = queue.length;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+async function syncQueue() {
+  if (queue.length === 0) return;
+  if (!navigator.onLine) { showToast('Still offline — will sync when connected', 'error'); return; }
+
+  const badge = document.getElementById('pending-badge');
+  badge.classList.add('syncing');
+  showToast(`Syncing ${queue.length} transaction${queue.length > 1 ? 's' : ''}…`, 'success');
+
+  const failed = [];
+  for (const item of queue) {
+    const urlKey = `cf_url_${item.sheet.toLowerCase()}`;
+    const url = localStorage.getItem(urlKey);
+    if (!url) { failed.push(item); continue; }
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item.payload)
+      });
+      if (!res.ok && res.status !== 202) { failed.push(item); }
+    } catch (e) {
+      failed.push(item);
+    }
+  }
+
+  queue = failed;
+  saveQueue();
+  badge.classList.remove('syncing');
+
+  if (failed.length === 0) {
+    showToast(`✓ All synced`, 'success');
+  } else {
+    showToast(`${failed.length} failed — tap to retry`, 'error');
+  }
+}
+
+// Auto-sync when coming back online
+window.addEventListener('online', () => {
+  if (queue.length > 0) {
+    showToast('Back online — syncing…', 'success');
+    setTimeout(syncQueue, 1000);
+  }
+});
+
 // ── Submit ────────────────────────────────────────────────────────────────────
 
 async function submitTransaction() {
@@ -593,6 +671,22 @@ async function submitTransaction() {
   btn.disabled = true;
   btn.classList.add('loading');
 
+  // If offline, queue it
+  if (!navigator.onLine) {
+    queue.push({ sheet: currentSheet, payload });
+    saveQueue();
+    const entry = { sheet: currentSheet, date, venue: venue || '—', cost, category, ts: Date.now() };
+    history.unshift(entry);
+    if (history.length > 20) history = history.slice(0, 20);
+    localStorage.setItem('cf_history', JSON.stringify(history));
+    renderHistory();
+    showToast(`Queued offline — will sync later`, 'success');
+    resetForm();
+    btn.disabled = false;
+    btn.classList.remove('loading');
+    return;
+  }
+
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -612,7 +706,16 @@ async function submitTransaction() {
       showToast(`Error ${res.status} — check your URL`, 'error');
     }
   } catch (e) {
-    showToast('Network error — check connection', 'error');
+    // Network error — queue it
+    queue.push({ sheet: currentSheet, payload });
+    saveQueue();
+    const entry = { sheet: currentSheet, date, venue: venue || '—', cost, category, ts: Date.now() };
+    history.unshift(entry);
+    if (history.length > 20) history = history.slice(0, 20);
+    localStorage.setItem('cf_history', JSON.stringify(history));
+    renderHistory();
+    showToast(`Queued — will sync when online`, 'success');
+    resetForm();
   } finally {
     btn.disabled = false;
     btn.classList.remove('loading');
