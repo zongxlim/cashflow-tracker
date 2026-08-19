@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0f">
+<title>Cashflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --border: #1e1e2e;
+    --border-bright: #2e2e45;
+    --accent: #7c6af7;
+    --accent-dim: #3d3580;
+    --accent-glow: rgba(124,106,247,0.15);
+    --text: #e8e8f0;
+    --text-muted: #6b6b85;
+    --text-dim: #3a3a55;
+    --success: #4ade80;
+    --error: #f87171;
+    --cash-color: #34d399;
+    --credit-color: #7c6af7;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0 0 80px;
+  }
+
+  .header {
+    padding: 52px 24px 20px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+
+  .header-left h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; line-height: 1; }
+  .header-left .subtitle { font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-top: 6px; letter-spacing: 0.05em; }
+
+  .tabs { padding: 0 24px; display: flex; gap: 8px; margin-bottom: 28px; }
+
+  .tab {
+    flex: 1; padding: 10px 0; border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-muted); font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em;
+    border-radius: 8px; cursor: pointer; transition: all 0.15s; text-align: center;
+  }
+  .tab.active[data-sheet="Cash"] { background: rgba(52,211,153,0.1); border-color: var(--cash-color); color: var(--cash-color); }
+  .tab.active[data-sheet="Credit"] { background: rgba(124,106,247,0.1); border-color: var(--credit-color); color: var(--credit-color); }
+
+  .form-body { padding: 0 24px; display: flex; flex-direction: column; gap: 14px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .field-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field.full { grid-column: 1 / -1; }
+
+  label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-muted); text-transform: uppercase; }
+  label span.required { color: var(--accent); margin-left: 2px; }
+
+  input, select, textarea {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    font-family: var(--mono); font-size: 14px; padding: 12px 14px; border-radius: 8px;
+    width: 100%; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+    -webkit-appearance: none; appearance: none;
+  }
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b6b85' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px;
+  }
+  select option { background: #1a1a2a; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
+  textarea { resize: none; height: 72px; line-height: 1.5; }
+
+  .cost-wrap { position: relative; }
+  .cost-wrap::before { content: '$'; position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-family: var(--mono); font-size: 14px; pointer-events: none; }
+  .cost-wrap input { padding-left: 26px; }
+
+  .account-preview {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; font-family: var(--mono); font-size: 12px; color: var(--text-muted);
+    min-height: 40px; display: flex; align-items: center; gap: 8px;
+  }
+  .account-preview .account-pill {
+    background: var(--accent-glow); border: 1px solid var(--accent-dim); color: var(--accent);
+    padding: 2px 8px; border-radius: 4px; font-size: 11px;
+  }
+
+  .submit-wrap { padding: 0 24px; margin-top: 8px; }
+  .btn-submit {
+    width: 100%; padding: 16px; border: none; border-radius: 10px; font-family: var(--sans);
+    font-size: 15px; font-weight: 600; letter-spacing: 0.02em; cursor: pointer;
+    transition: all 0.15s; position: relative; overflow: hidden;
+  }
+  .btn-submit[data-sheet="Cash"] { background: var(--cash-color); color: #0a0a0f; }
+  .btn-submit[data-sheet="Credit"] { background: var(--credit-color); color: #fff; }
+  .btn-submit:active { transform: scale(0.98); }
+  .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-submit .spinner { display: none; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto; }
+  .btn-submit.loading .btn-text { display: none; }
+  .btn-submit.loading .spinner { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px);
+    background: var(--surface); border: 1px solid var(--border-bright); border-radius: 10px;
+    padding: 14px 20px; font-family: var(--mono); font-size: 13px; z-index: 100;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); white-space: nowrap;
+    max-width: calc(100vw - 48px); display: flex; align-items: center; gap: 10px;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--success); color: var(--success); }
+  .toast.error { border-color: var(--error); color: var(--error); }
+
+  .config-toggle {
+    position: fixed; top: 16px; right: 20px; z-index: 50; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--text-muted); cursor: pointer; letter-spacing: 0.05em;
+  }
+
+  .config-panel {
+    position: fixed; inset: 0; background: var(--bg); z-index: 200; padding: 52px 24px 40px;
+    overflow-y: auto; transform: translateX(100%); transition: transform 0.25s ease;
+  }
+  .config-panel.open { transform: translateX(0); }
+  .config-panel h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .config-panel .desc { font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-bottom: 28px; line-height: 1.6; }
+
+  .config-close {
+    position: absolute; top: 16px; right: 20px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--text-muted); cursor: pointer;
+  }
+
+  .config-field { margin-bottom: 20px; }
+  .config-field label { font-family: var(--mono); font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 8px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .config-field input { width: 100%; }
+
+  .config-save {
+    width: 100%; padding: 14px; background: var(--accent); border: none; border-radius: 10px;
+    color: #fff; font-family: var(--sans); font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px;
+  }
+
+  .step-list { list-style: none; margin: 16px 0 28px; }
+  .step-list li { font-family: var(--mono); font-size: 12px; color: var(--text-muted); line-height: 1.7; padding-left: 20px; position: relative; }
+  .step-list li::before { content: attr(data-n); position: absolute; left: 0; color: var(--accent); }
+
+  .divider { height: 1px; background: var(--border); margin: 24px 0; }
+
+  .history-section { padding: 28px 24px 0; }
+  .history-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 12px; }
+  .history-item {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .history-item .hi-left { flex: 1; }
+  .history-item .hi-venue { font-size: 13px; font-weight: 500; }
+  .history-item .hi-meta { font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+  .history-item .hi-amount { font-family: var(--mono); font-size: 14px; font-weight: 500; }
+  .history-item.sheet-Cash .hi-amount { color: var(--cash-color); }
+  .history-item.sheet-Credit .hi-amount { color: var(--credit-color); }
+
+  /* Category Manager */
+  .cat-row {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s;
+  }
+  .cat-row.expanded { border-color: var(--accent); }
+  .cat-row-name { font-family: var(--mono); font-size: 13px; flex: 1; }
+  .cat-row-chevron { color: var(--text-muted); font-size: 10px; transition: transform 0.2s; }
+  .cat-row.expanded .cat-row-chevron { transform: rotate(90deg); }
+  .cat-delete { background: none; border: none; color: var(--error); font-size: 14px; cursor: pointer; padding: 0 2px; opacity: 0.6; }
+  .cat-delete:hover { opacity: 1; }
+
+  .sub-panel {
+    display: none; padding: 8px 12px 12px 16px; border: 1px solid var(--accent);
+    border-top: none; border-radius: 0 0 8px 8px; margin-top: -6px; margin-bottom: 6px;
+    background: rgba(124,106,247,0.04);
+  }
+  .sub-panel.open { display: block; }
+  .sub-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .sub-tag {
+    background: var(--surface); border: 1px solid var(--border-bright); border-radius: 4px;
+    padding: 3px 8px; font-family: var(--mono); font-size: 11px; display: flex; align-items: center; gap: 5px;
+  }
+  .sub-tag button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; padding: 0; line-height: 1; }
+  .sub-tag button:hover { color: var(--error); }
+  .sub-add-row { display: flex; gap: 6px; }
+  .sub-add-row input { flex: 1; font-size: 12px; padding: 8px 10px; }
+  .btn-add-sub {
+    background: var(--accent-glow); border: 1px solid var(--accent-dim); color: var(--accent);
+    border-radius: 6px; padding: 8px 12px; font-family: var(--mono); font-size: 11px; cursor: pointer; white-space: nowrap;
+  }
+  .add-cat-row { display: flex; gap: 8px; margin-top: 4px; }
+  .add-cat-row input { flex: 1; }
+
+  .custom-input {
+    display: none; margin-top: 6px;
+  }
+  .custom-input.visible { display: block; }
+
+  .btn-add-cat {
+    background: var(--accent); border: none; color: #fff; border-radius: 8px; padding: 12px 16px;
+    font-family: var(--mono); font-size: 12px; cursor: pointer; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="header">
+    <div class="header-left">
+      <h1>Cashflow</h1>
+      <div class="subtitle" id="today-label">— — —</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-sheet="Cash" onclick="switchSheet('Cash')">Cash</button>
+    <button class="tab" data-sheet="Credit" onclick="switchSheet('Credit')">Credit</button>
+  </div>
+
+  <div class="form-body" id="form-body">
+    <div class="field-row">
+      <div class="field">
+        <label>Date <span class="required">*</span></label>
+        <input type="date" id="f-date">
+      </div>
+      <div class="field">
+        <label>Cost <span class="required">*</span></label>
+        <div class="cost-wrap">
+          <input type="number" id="f-cost" step="0.01" min="0" placeholder="0.00">
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Venue</label>
+      <input type="text" id="f-venue" placeholder="Where / who">
+    </div>
+
+    <div class="field">
+      <label>Activities</label>
+      <input type="text" id="f-activities" placeholder="What for">
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Method <span class="required">*</span></label>
+        <select id="f-method" onchange="onMethodChange()">
+          <option value="">— select —</option>
+        </select>
+        <input type="text" id="f-method-custom" class="custom-input" placeholder="Type method…">
+      </div>
+      <div class="field">
+        <label>Account → column</label>
+        <div class="account-preview" id="account-preview">
+          <span style="color:var(--text-dim)">select method first</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Category</label>
+        <select id="f-category" onchange="onCategoryChange()">
+          <option value="">— select —</option>
+        </select>
+        <input type="text" id="f-category-custom" class="custom-input" placeholder="Type category…">
+      </div>
+      <div class="field">
+        <label>Sub</label>
+        <select id="f-sub" onchange="onSubChange()">
+          <option value="">— select —</option>
+        </select>
+        <input type="text" id="f-sub-custom" class="custom-input" placeholder="Type sub…">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Sub2</label>
+        <input type="text" id="f-sub2" placeholder="Optional">
+      </div>
+      <div class="field">
+        <label>Sub3</label>
+        <input type="text" id="f-sub3" placeholder="Optional">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Remarks</label>
+      <textarea id="f-remarks" placeholder="Optional notes…"></textarea>
+    </div>
+  </div>
+
+  <div class="submit-wrap" style="margin-top:20px;">
+    <button class="btn-submit" id="btn-submit" data-sheet="Cash" onclick="submitTransaction()">
+      <span class="btn-text">Add to Cash</span>
+      <div class="spinner"></div>
+    </button>
+  </div>
+
+  <div class="history-section" id="history-section"></div>
+</div>
+
+<button class="config-toggle" onclick="openConfig()">⚙ setup</button>
+
+<div class="config-panel" id="config-panel">
+  <button class="config-close" onclick="closeConfig()">✕ close</button>
+  <h2>Setup</h2>
+  <p class="desc">Paste your Power Automate HTTP trigger URL below.<br>This is stored only in your browser.</p>
+
+  <div class="divider"></div>
+
+  <h3 style="font-size:13px;font-weight:600;margin-bottom:10px;">How to get your URL</h3>
+  <ol class="step-list">
+    <li data-n="1.">Go to make.powerautomate.com</li>
+    <li data-n="2.">Create → Instant cloud flow</li>
+    <li data-n="3.">Trigger: "When an HTTP request is received"</li>
+    <li data-n="4.">Add action: Excel Online → "Add a row into a table"</li>
+    <li data-n="5.">Map the JSON fields to your Excel columns</li>
+    <li data-n="6.">Save the flow → copy the HTTP POST URL</li>
+    <li data-n="7.">Paste it below</li>
+  </ol>
+
+  <div class="divider"></div>
+
+  <div class="config-field">
+    <label>Power Automate URL (Cash sheet)</label>
+    <input type="url" id="cfg-cash-url" placeholder="https://prod-xx.westus.logic.azure.com/…">
+  </div>
+  <div class="config-field">
+    <label>Power Automate URL (Credit sheet)</label>
+    <input type="url" id="cfg-credit-url" placeholder="https://prod-xx.westus.logic.azure.com/…">
+  </div>
+
+  <button class="config-save" onclick="saveConfig()">Save & Close</button>
+
+  <div class="divider"></div>
+
+  <h3 style="font-size:13px;font-weight:600;margin-bottom:6px;">Categories & Sub-categories</h3>
+  <p class="desc" style="margin-bottom:14px;">Changes save instantly to this device. Remember to also add new entries to your Excel Cat tab.</p>
+
+  <div class="cat-manager" id="cat-manager"></div>
+
+  <div class="add-cat-row">
+    <input type="text" id="new-cat-input" placeholder="New category name…">
+    <button class="btn-add-cat" onclick="addCategory()">+ Add</button>
+  </div>
+
+  <div class="divider"></div>
+
+  <p class="desc" style="font-size:10px;">URLs are saved in localStorage on this device only. Nothing is sent until you submit a transaction.</p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Data ─────────────────────────────────────────────────────────────────────
+
+const SHEETS = {
+  Cash: {
+    color: 'var(--cash-color)',
+    methods: ['Checking','Savings','CheckingCO','SavingsCO','SavingsF','SavingsFL','COne Savings','Optum','Fidelity','RothIRA','Cash','Venmo'],
+    methodToColumn: {
+      'Checking':'Checking','Savings':'Savings','CheckingCO':'CheckingCO',
+      'SavingsCO':'SavingsCO','SavingsF':'SavingsF','SavingsFL':'SavingsFL',
+      'COne Savings':'COne Savings','Optum':'Optum','Fidelity':'Fidelity',
+      'RothIRA':'RothIRA','Cash':'Cash','Venmo':'Venmo'
+    }
+  },
+  Credit: {
+    color: 'var(--credit-color)',
+    methods: ['Discover','WF','Chase','Savor1','Venmo'],
+    methodToColumn: {
+      'Discover':'Discover','WF':'WF','Chase':'Chase','Savor1':'Savor1','Venmo':'Venmo'
+    }
+  }
+};
+
+// Default Category → Sub mapping (from Cat tab)
+const CAT_SUB_DEFAULT = {
+  'Pay':       [],
+  'Health':    [],
+  'Home':      ['Rent','Move'],
+  'Utilities': ['Wifi','Gas','Electric','Others'],
+  'F&D':       ['Groceries','Out','Caffeine'],
+  'Dr':        ['Alcohol','THC'],
+  'Need':      ['Skincare','Insurance','License','Visa','Phone','Goods','Workout'],
+  'Hair':      ['Haircut','Haircare'],
+  'Eyes':      ['Lenses','Glasses'],
+  'Transport': ['Maintenance','Parking','Car','Gas','Insurance','Ride','Registration'],
+  'Want':      ['Experience','Goods','Music','Gift','Service','Fashion','Shambhala'],
+  'Travel':    ['Flight','Stay'],
+  'Fam':       []
+};
+
+// Dynamic cat/sub — localStorage overrides defaults
+let catSub = JSON.parse(localStorage.getItem('cf_cat_sub') || 'null') || JSON.parse(JSON.stringify(CAT_SUB_DEFAULT));
+
+function saveCatSub() {
+  localStorage.setItem('cf_cat_sub', JSON.stringify(catSub));
+}
+
+let currentSheet = 'Cash';
+let history = JSON.parse(localStorage.getItem('cf_history') || '[]');
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+window.onload = () => {
+  const today = new Date();
+  document.getElementById('f-date').value = today.toISOString().split('T')[0];
+  document.getElementById('today-label').textContent =
+    today.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
+  switchSheet('Cash');
+  renderHistory();
+};
+
+// ── Sheet switching ────────────────────────────────────────────────────────────
+
+function switchSheet(sheet) {
+  currentSheet = sheet;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.sheet === sheet));
+  const btn = document.getElementById('btn-submit');
+  btn.dataset.sheet = sheet;
+  btn.querySelector('.btn-text').textContent = `Add to ${sheet}`;
+
+  const sel = document.getElementById('f-method');
+  sel.innerHTML = '<option value="">— select —</option>';
+  SHEETS[sheet].methods.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m; o.textContent = m;
+    sel.appendChild(o);
+  });
+  sel.appendChild(Object.assign(document.createElement('option'), { value: '__other__', textContent: '✎ Other…' }));
+  document.getElementById('f-method-custom').classList.remove('visible');
+  document.getElementById('f-method-custom').value = '';
+
+  onMethodChange();
+  buildCategoryDropdown();
+}
+
+// ── Method → account column preview ──────────────────────────────────────────
+
+function onMethodChange() {
+  const sel = document.getElementById('f-method');
+  const customInput = document.getElementById('f-method-custom');
+  const preview = document.getElementById('account-preview');
+
+  if (sel.value === '__other__') {
+    customInput.classList.add('visible');
+    customInput.focus();
+    preview.innerHTML = `<span style="color:var(--text-dim)">custom method</span>`;
+  } else {
+    customInput.classList.remove('visible');
+    customInput.value = '';
+    const col = SHEETS[currentSheet].methodToColumn[sel.value];
+    if (col) {
+      preview.innerHTML = `<span class="account-pill">${col}</span>`;
+    } else {
+      preview.innerHTML = `<span style="color:var(--text-dim)">select method first</span>`;
+    }
+  }
+}
+
+// ── Category → Sub dropdowns ──────────────────────────────────────────────────
+
+function buildCategoryDropdown() {
+  const sel = document.getElementById('f-category');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— select —</option>';
+  Object.keys(catSub).forEach(c => {
+    const o = document.createElement('option');
+    o.value = c; o.textContent = c;
+    if (c === cur) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.appendChild(Object.assign(document.createElement('option'), { value: '__other__', textContent: '✎ Other…' }));
+  document.getElementById('f-category-custom').classList.remove('visible');
+  document.getElementById('f-category-custom').value = '';
+  onCategoryChange();
+}
+
+function onCategoryChange() {
+  const sel = document.getElementById('f-category');
+  const customInput = document.getElementById('f-category-custom');
+
+  if (sel.value === '__other__') {
+    customInput.classList.add('visible');
+    customInput.focus();
+    // Clear sub to free-text too
+    document.getElementById('f-sub').innerHTML = '<option value="">— select —</option>';
+    document.getElementById('f-sub').value = '';
+    document.getElementById('f-sub').disabled = true;
+    document.getElementById('f-sub-custom').classList.add('visible');
+    return;
+  }
+
+  customInput.classList.remove('visible');
+  customInput.value = '';
+
+  const cat = sel.value;
+  const subSel = document.getElementById('f-sub');
+  subSel.innerHTML = '<option value="">— select —</option>';
+  const subs = catSub[cat] || [];
+  subs.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s;
+    subSel.appendChild(o);
+  });
+  if (subs.length > 0) {
+    subSel.appendChild(Object.assign(document.createElement('option'), { value: '__other__', textContent: '✎ Other…' }));
+  }
+  subSel.disabled = subs.length === 0 && cat !== '';
+  document.getElementById('f-sub-custom').classList.remove('visible');
+  document.getElementById('f-sub-custom').value = '';
+}
+
+function onSubChange() {
+  const sel = document.getElementById('f-sub');
+  const customInput = document.getElementById('f-sub-custom');
+  if (sel.value === '__other__') {
+    customInput.classList.add('visible');
+    customInput.focus();
+  } else {
+    customInput.classList.remove('visible');
+    customInput.value = '';
+  }
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+
+async function submitTransaction() {
+  const date       = document.getElementById('f-date').value;
+  const cost       = parseFloat(document.getElementById('f-cost').value);
+  const venue      = document.getElementById('f-venue').value.trim();
+  const activities = document.getElementById('f-activities').value.trim();
+  const methodSel  = document.getElementById('f-method').value;
+  const method     = methodSel === '__other__' ? document.getElementById('f-method-custom').value.trim() : methodSel;
+  const catSel     = document.getElementById('f-category').value;
+  const category   = catSel === '__other__' ? document.getElementById('f-category-custom').value.trim() : catSel;
+  const subSel     = document.getElementById('f-sub').value;
+  const sub        = subSel === '__other__' ? document.getElementById('f-sub-custom').value.trim() : (catSel === '__other__' ? document.getElementById('f-sub-custom').value.trim() : subSel);
+  const sub2       = document.getElementById('f-sub2').value.trim();
+  const sub3       = document.getElementById('f-sub3').value.trim();
+  const remarks    = document.getElementById('f-remarks').value.trim();
+
+  if (!date) return showToast('Date is required', 'error');
+  if (isNaN(cost) || cost < 0) return showToast('Enter a valid cost', 'error');
+  if (!method) return showToast('Enter a method', 'error');
+
+  const urlKey = `cf_url_${currentSheet.toLowerCase()}`;
+  const url = localStorage.getItem(urlKey);
+
+  if (!url) {
+    showToast('No URL set — open ⚙ setup', 'error');
+    return;
+  }
+
+  const payload = { date, venue, activities, method, category, sub, sub2, sub3, cost, remarks };
+
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true;
+  btn.classList.add('loading');
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok || res.status === 202) {
+      const entry = { sheet: currentSheet, date, venue: venue || '—', cost, category, ts: Date.now() };
+      history.unshift(entry);
+      if (history.length > 20) history = history.slice(0, 20);
+      localStorage.setItem('cf_history', JSON.stringify(history));
+      renderHistory();
+      showToast(`✓ Added to ${currentSheet}`, 'success');
+      resetForm();
+    } else {
+      showToast(`Error ${res.status} — check your URL`, 'error');
+    }
+  } catch (e) {
+    showToast('Network error — check connection', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('loading');
+  }
+}
+
+// ── Reset form ────────────────────────────────────────────────────────────────
+
+function resetForm() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('f-date').value = today;
+  document.getElementById('f-cost').value = '';
+  document.getElementById('f-venue').value = '';
+  document.getElementById('f-activities').value = '';
+  document.getElementById('f-method').value = '';
+  document.getElementById('f-method-custom').value = '';
+  document.getElementById('f-method-custom').classList.remove('visible');
+  document.getElementById('f-category').value = '';
+  document.getElementById('f-category-custom').value = '';
+  document.getElementById('f-category-custom').classList.remove('visible');
+  document.getElementById('f-sub-custom').value = '';
+  document.getElementById('f-sub-custom').classList.remove('visible');
+  document.getElementById('f-sub2').value = '';
+  document.getElementById('f-sub3').value = '';
+  document.getElementById('f-remarks').value = '';
+  onMethodChange();
+  onCategoryChange();
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+
+function renderHistory() {
+  const el = document.getElementById('history-section');
+  if (history.length === 0) { el.innerHTML = ''; return; }
+  const items = history.slice(0, 5).map(h => `
+    <div class="history-item sheet-${h.sheet}">
+      <div class="hi-left">
+        <div class="hi-venue">${h.venue}</div>
+        <div class="hi-meta">${h.date} · ${h.sheet}${h.category ? ' · ' + h.category : ''}</div>
+      </div>
+      <div class="hi-amount">$${Number(h.cost).toFixed(2)}</div>
+    </div>
+  `).join('');
+  el.innerHTML = `<div class="history-label">Recent entries</div>${items}`;
+}
+
+// ── Config ────────────────────────────────────────────────────────────────────
+
+function openConfig() {
+  document.getElementById('cfg-cash-url').value   = localStorage.getItem('cf_url_cash')   || '';
+  document.getElementById('cfg-credit-url').value = localStorage.getItem('cf_url_credit') || '';
+  renderCatManager();
+  document.getElementById('config-panel').classList.add('open');
+}
+
+function closeConfig() {
+  document.getElementById('config-panel').classList.remove('open');
+}
+
+function saveConfig() {
+  const cash   = document.getElementById('cfg-cash-url').value.trim();
+  const credit = document.getElementById('cfg-credit-url').value.trim();
+  if (cash)   localStorage.setItem('cf_url_cash', cash);
+  if (credit) localStorage.setItem('cf_url_credit', credit);
+  closeConfig();
+  showToast('URLs saved', 'success');
+}
+
+// ── Category Manager ──────────────────────────────────────────────────────────
+
+let expandedCat = null;
+
+function renderCatManager() {
+  const el = document.getElementById('cat-manager');
+  el.innerHTML = Object.entries(catSub).map(([cat, subs]) => `
+    <div>
+      <div class="cat-row ${expandedCat === cat ? 'expanded' : ''}" onclick="toggleCat('${escAttr(cat)}')">
+        <span class="cat-row-name">${escHtml(cat)}</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-muted)">${subs.length} sub${subs.length !== 1 ? 's' : ''}</span>
+        <span class="cat-row-chevron">▶</span>
+        <button class="cat-delete" onclick="event.stopPropagation();deleteCategory('${escAttr(cat)}')" title="Delete category">✕</button>
+      </div>
+      <div class="sub-panel ${expandedCat === cat ? 'open' : ''}" id="sub-panel-${escId(cat)}">
+        <div class="sub-tags" id="sub-tags-${escId(cat)}">
+          ${subs.map(s => `
+            <div class="sub-tag">
+              ${escHtml(s)}
+              <button onclick="deleteSub('${escAttr(cat)}','${escAttr(s)}')" title="Remove">✕</button>
+            </div>
+          `).join('')}
+        </div>
+        <div class="sub-add-row">
+          <input type="text" placeholder="New sub-category…" id="sub-input-${escId(cat)}"
+            onkeydown="if(event.key==='Enter')addSub('${escAttr(cat)}')">
+          <button class="btn-add-sub" onclick="addSub('${escAttr(cat)}')">+ Add</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function escId(s) { return s.replace(/[^a-zA-Z0-9]/g, '_'); }
+
+function toggleCat(cat) {
+  expandedCat = expandedCat === cat ? null : cat;
+  renderCatManager();
+  if (expandedCat) {
+    const input = document.getElementById(`sub-input-${escId(cat)}`);
+    if (input) setTimeout(() => input.focus(), 50);
+  }
+}
+
+function addCategory() {
+  const input = document.getElementById('new-cat-input');
+  const name = input.value.trim();
+  if (!name) return;
+  if (catSub[name]) { showToast('Category already exists', 'error'); return; }
+  catSub[name] = [];
+  saveCatSub();
+  buildCategoryDropdown();
+  input.value = '';
+  expandedCat = name;
+  renderCatManager();
+  showToast(`"${name}" added`, 'success');
+}
+
+function deleteCategory(cat) {
+  if (!confirm(`Delete "${cat}" and all its sub-categories?`)) return;
+  delete catSub[cat];
+  if (expandedCat === cat) expandedCat = null;
+  saveCatSub();
+  buildCategoryDropdown();
+  renderCatManager();
+  showToast(`"${cat}" deleted`, 'success');
+}
+
+function addSub(cat) {
+  const input = document.getElementById(`sub-input-${escId(cat)}`);
+  const name = input.value.trim();
+  if (!name) return;
+  if (catSub[cat].includes(name)) { showToast('Already exists', 'error'); return; }
+  catSub[cat].push(name);
+  saveCatSub();
+  buildCategoryDropdown();
+  input.value = '';
+  renderCatManager();
+  showToast(`"${name}" added to ${cat}`, 'success');
+}
+
+function deleteSub(cat, sub) {
+  catSub[cat] = catSub[cat].filter(s => s !== sub);
+  saveCatSub();
+  buildCategoryDropdown();
+  renderCatManager();
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+
+let toastTimer;
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
