@@ -32,37 +32,19 @@
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
   body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100dvh;
-    overflow-x: hidden;
+    background: var(--bg); color: var(--text); font-family: var(--sans);
+    min-height: 100dvh; overflow-x: hidden;
   }
 
   body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
+    content: ''; position: fixed; inset: 0;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 0;
+    pointer-events: none; z-index: 0;
   }
 
-  .app {
-    position: relative;
-    z-index: 1;
-    max-width: 480px;
-    margin: 0 auto;
-    padding: 0 0 80px;
-  }
+  .app { position: relative; z-index: 1; max-width: 480px; margin: 0 auto; padding: 0 0 80px; }
 
-  .header {
-    padding: 52px 24px 20px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-  }
-
+  .header { padding: 52px 24px 20px; display: flex; align-items: flex-end; justify-content: space-between; }
   .header-left h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; line-height: 1; }
   .header-left .subtitle { font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-top: 6px; letter-spacing: 0.05em; }
 
@@ -75,8 +57,7 @@
   .pending-badge.syncing { animation: none; opacity: 0.6; pointer-events: none; }
   @keyframes pulse-pending { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
 
-  .tabs { padding: 0 24px; display: flex; gap: 8px; margin-bottom: 28px; }
-
+  .tabs { padding: 0 24px; display: flex; gap: 8px; margin-bottom: 16px; }
   .tab {
     flex: 1; padding: 10px 0; border: 1px solid var(--border); background: var(--surface);
     color: var(--text-muted); font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em;
@@ -85,11 +66,21 @@
   .tab.active[data-sheet="Cash"] { background: rgba(52,211,153,0.1); border-color: var(--cash-color); color: var(--cash-color); }
   .tab.active[data-sheet="Credit"] { background: rgba(124,106,247,0.1); border-color: var(--credit-color); color: var(--credit-color); }
 
+  /* Favorites */
+  .fav-section { padding: 0 24px 16px; }
+  .fav-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px; }
+  .fav-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .fav-chip {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+    padding: 6px 14px; font-family: var(--mono); font-size: 11px; color: var(--text-muted);
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .fav-chip:active { transform: scale(0.95); }
+  .fav-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+
   .form-body { padding: 0 24px; display: flex; flex-direction: column; gap: 14px; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .field-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
   .field { display: flex; flex-direction: column; gap: 6px; }
-  .field.full { grid-column: 1 / -1; }
 
   label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-muted); text-transform: uppercase; }
   label span.required { color: var(--accent); margin-left: 2px; }
@@ -122,6 +113,19 @@
     background: var(--accent-glow); border: 1px solid var(--accent-dim); color: var(--accent);
     padding: 2px 8px; border-radius: 4px; font-size: 11px;
   }
+
+  .custom-input { display: none; margin-top: 6px; }
+  .custom-input.visible { display: block; }
+
+  /* More details toggle */
+  .more-toggle {
+    font-family: var(--mono); font-size: 11px; color: var(--text-muted); cursor: pointer;
+    padding: 4px 0; letter-spacing: 0.03em; display: flex; align-items: center; gap: 6px;
+  }
+  .more-toggle .arrow { transition: transform 0.2s; font-size: 9px; }
+  .more-toggle.open .arrow { transform: rotate(90deg); }
+  .more-fields { display: none; flex-direction: column; gap: 14px; }
+  .more-fields.open { display: flex; }
 
   .submit-wrap { padding: 0 24px; margin-top: 8px; }
   .btn-submit {
@@ -161,18 +165,16 @@
   }
   .config-panel.open { transform: translateX(0); }
   .config-panel h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .config-panel h3 { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
   .config-panel .desc { font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-bottom: 28px; line-height: 1.6; }
-
   .config-close {
     position: absolute; top: 16px; right: 20px; background: var(--surface);
     border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
     font-family: var(--mono); font-size: 11px; color: var(--text-muted); cursor: pointer;
   }
-
   .config-field { margin-bottom: 20px; }
   .config-field label { font-family: var(--mono); font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 8px; letter-spacing: 0.08em; text-transform: uppercase; }
   .config-field input { width: 100%; }
-
   .config-save {
     width: 100%; padding: 14px; background: var(--accent); border: none; border-radius: 10px;
     color: #fff; font-family: var(--sans); font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px;
@@ -197,7 +199,7 @@
   .history-item.sheet-Cash .hi-amount { color: var(--cash-color); }
   .history-item.sheet-Credit .hi-amount { color: var(--credit-color); }
 
-  /* Category Manager */
+  /* Category & Favorites Manager */
   .cat-row {
     display: flex; align-items: center; gap: 8px; padding: 8px 12px;
     background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
@@ -209,7 +211,6 @@
   .cat-row.expanded .cat-row-chevron { transform: rotate(90deg); }
   .cat-delete { background: none; border: none; color: var(--error); font-size: 14px; cursor: pointer; padding: 0 2px; opacity: 0.6; }
   .cat-delete:hover { opacity: 1; }
-
   .sub-panel {
     display: none; padding: 8px 12px 12px 16px; border: 1px solid var(--accent);
     border-top: none; border-radius: 0 0 8px 8px; margin-top: -6px; margin-bottom: 6px;
@@ -225,22 +226,24 @@
   .sub-tag button:hover { color: var(--error); }
   .sub-add-row { display: flex; gap: 6px; }
   .sub-add-row input { flex: 1; font-size: 12px; padding: 8px 10px; }
-  .btn-add-sub {
+  .btn-add-sub, .btn-add-fav {
     background: var(--accent-glow); border: 1px solid var(--accent-dim); color: var(--accent);
     border-radius: 6px; padding: 8px 12px; font-family: var(--mono); font-size: 11px; cursor: pointer; white-space: nowrap;
   }
-  .add-cat-row { display: flex; gap: 8px; margin-top: 4px; }
-  .add-cat-row input { flex: 1; }
-
-  .custom-input {
-    display: none; margin-top: 6px;
-  }
-  .custom-input.visible { display: block; }
-
+  .add-cat-row, .add-fav-row { display: flex; gap: 8px; margin-top: 4px; }
+  .add-cat-row input, .add-fav-row input { flex: 1; }
   .btn-add-cat {
     background: var(--accent); border: none; color: #fff; border-radius: 8px; padding: 12px 16px;
     font-family: var(--mono); font-size: 12px; cursor: pointer; white-space: nowrap;
   }
+
+  .fav-manager-item {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .fav-manager-label { font-family: var(--mono); font-size: 12px; flex: 1; }
+  .fav-manager-detail { font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
+  .fav-manager-edit { background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 0 6px; }
 </style>
 </head>
 <body>
@@ -259,6 +262,12 @@
   <div class="tabs">
     <button class="tab active" data-sheet="Cash" onclick="switchSheet('Cash')">Cash</button>
     <button class="tab" data-sheet="Credit" onclick="switchSheet('Credit')">Credit</button>
+  </div>
+
+  <!-- Favorites -->
+  <div class="fav-section" id="fav-section" style="display:none;">
+    <div class="fav-label">Quick add</div>
+    <div class="fav-chips" id="fav-chips"></div>
   </div>
 
   <div class="form-body" id="form-body">
@@ -318,14 +327,20 @@
       </div>
     </div>
 
-    <div class="field-row">
-      <div class="field">
-        <label>Sub2</label>
-        <input type="text" id="f-sub2" placeholder="Optional">
-      </div>
-      <div class="field">
-        <label>Sub3</label>
-        <input type="text" id="f-sub3" placeholder="Optional">
+    <!-- More details toggle -->
+    <div class="more-toggle" id="more-toggle" onclick="toggleMore()">
+      <span class="arrow">▶</span> More details
+    </div>
+    <div class="more-fields" id="more-fields">
+      <div class="field-row">
+        <div class="field">
+          <label>Sub2</label>
+          <input type="text" id="f-sub2" placeholder="Optional">
+        </div>
+        <div class="field">
+          <label>Sub3</label>
+          <input type="text" id="f-sub3" placeholder="Optional">
+        </div>
       </div>
     </div>
 
@@ -350,11 +365,11 @@
 <div class="config-panel" id="config-panel">
   <button class="config-close" onclick="closeConfig()">✕ close</button>
   <h2>Setup</h2>
-  <p class="desc">Paste your Power Automate HTTP trigger URL below.<br>This is stored only in your browser.</p>
+  <p class="desc">Paste your Power Automate HTTP trigger URL below.<br>Stored only in your browser.</p>
 
   <div class="divider"></div>
 
-  <h3 style="font-size:13px;font-weight:600;margin-bottom:10px;">How to get your URL</h3>
+  <h3>How to get your URL</h3>
   <ol class="step-list">
     <li data-n="1.">Go to make.powerautomate.com</li>
     <li data-n="2.">Create → Instant cloud flow</li>
@@ -380,19 +395,22 @@
 
   <div class="divider"></div>
 
-  <h3 style="font-size:13px;font-weight:600;margin-bottom:6px;">Categories & Sub-categories</h3>
-  <p class="desc" style="margin-bottom:14px;">Changes save instantly to this device. Remember to also add new entries to your Excel Cat tab.</p>
+  <h3>Favorites</h3>
+  <p class="desc" style="margin-bottom:14px;">Recurring transactions. Tap to edit cost or details.</p>
+  <div id="fav-manager"></div>
 
+  <div class="divider"></div>
+
+  <h3>Categories & Sub-categories</h3>
+  <p class="desc" style="margin-bottom:14px;">Changes save instantly. Remember to update your Excel Cat tab too.</p>
   <div class="cat-manager" id="cat-manager"></div>
-
   <div class="add-cat-row">
     <input type="text" id="new-cat-input" placeholder="New category name…">
     <button class="btn-add-cat" onclick="addCategory()">+ Add</button>
   </div>
 
   <div class="divider"></div>
-
-  <p class="desc" style="font-size:10px;">URLs are saved in localStorage on this device only. Nothing is sent until you submit a transaction.</p>
+  <p class="desc" style="font-size:10px;">All settings saved in localStorage on this device only.</p>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -420,32 +438,51 @@ const SHEETS = {
   }
 };
 
-// Default Category → Sub mapping (from Cat tab)
 const CAT_SUB_DEFAULT = {
-  'Pay':       [],
-  'Health':    [],
-  'Home':      ['Rent','Move'],
-  'Utilities': ['Wifi','Gas','Electric','Others'],
-  'F&D':       ['Groceries','Out','Caffeine'],
-  'Dr':        ['Alcohol','THC'],
-  'Need':      ['Skincare','Insurance','License','Visa','Phone','Goods','Workout'],
-  'Hair':      ['Haircut','Haircare'],
-  'Eyes':      ['Lenses','Glasses'],
-  'Transport': ['Maintenance','Parking','Car','Gas','Insurance','Ride','Registration'],
-  'Want':      ['Experience','Goods','Music','Gift','Service','Fashion','Shambhala'],
-  'Travel':    ['Flight','Stay'],
-  'Fam':       []
+  'Pay':[],'Health':[],'Home':['Rent','Move'],
+  'Utilities':['Wifi','Gas','Electric','Others'],
+  'F&D':['Groceries','Out','Caffeine'],
+  'Dr':['Alcohol','THC'],
+  'Need':['Skincare','Insurance','License','Visa','Phone','Goods','Workout'],
+  'Hair':['Haircut','Haircare'],
+  'Eyes':['Lenses','Glasses'],
+  'Transport':['Maintenance','Parking','Car','Gas','Insurance','Ride','Registration'],
+  'Want':['Experience','Goods','Music','Gift','Service','Fashion','Shambhala'],
+  'Travel':['Flight','Stay'],
+  'Fam':[]
 };
 
-// Dynamic cat/sub — localStorage overrides defaults
+const FAVORITES_DEFAULT = [
+  { label:'State Farm', sheet:'Credit', venue:'State Farm', activities:"Renter's insurance", method:'WF', category:'Need', sub:'Insurance', cost:13.09 },
+  { label:'Franz Fahrenheit', sheet:'Credit', venue:'Apple', activities:'Franz Fahrenheit (monthly)', method:'WF', category:'Want', sub:'Service', cost:1.08 },
+  { label:'iCloud+', sheet:'Credit', venue:'Apple', activities:'iCloud+', method:'WF', category:'Want', sub:'Service', cost:2.99 },
+  { label:'Spotify', sheet:'Credit', venue:'Spotify', activities:'Monthly sub', method:'Savor1', category:'Want', sub:'Music', cost:14.16 },
+  { label:'Haircut', sheet:'Credit', venue:'James Irving Grooming', activities:'Haircut', method:'WF', category:'Hair', sub:'Haircut', cost:72.00 },
+  { label:'Sencha', sheet:'Credit', venue:'Harney & Sons', activities:'Japanese Sencha (1lb Loose Leaf) (60-day sub)', method:'WF', category:'F&D', sub:'Caffeine', cost:43.79 },
+  { label:'Cocofloss', sheet:'Credit', venue:'Cocofloss', activities:'32-yard floss (3-month sub)', method:'WF', category:'Need', sub:'', cost:9.73 },
+  { label:'Vanicream', sheet:'Credit', venue:'LovelySkin', activities:'2x Vanicream (10-week sub)', method:'WF', category:'Need', sub:'Skincare', cost:32.71 },
+  { label:'Discover CB', sheet:'Credit', venue:'Discover', activities:'Cash back', method:'Discover', category:'', sub:'', cost:0 },
+  { label:'Savor1 CB', sheet:'Credit', venue:'Capital One', activities:'Cash back', method:'Savor1', category:'', sub:'', cost:0 },
+  { label:'WF CB', sheet:'Credit', venue:'Wells Fargo', activities:'Cash back', method:'WF', category:'', sub:'', cost:0 },
+  { label:'Chase CB', sheet:'Credit', venue:'Chase', activities:'Cash back', method:'Chase', category:'', sub:'', cost:0 },
+  { label:'Discover Pay', sheet:'Credit', venue:'Discover', activities:'Discover Payment', method:'Discover', category:'', sub:'', cost:0 },
+  { label:'Savor1 Pay', sheet:'Credit', venue:'Capital One', activities:'SavorOne Payment', method:'Savor1', category:'', sub:'', cost:0 },
+  { label:'WF Pay', sheet:'Credit', venue:'Wells Fargo', activities:'WF Payment', method:'WF', category:'', sub:'', cost:0 },
+  { label:'Chase Pay', sheet:'Credit', venue:'Chase', activities:'Chase Payment', method:'Chase', category:'', sub:'', cost:0 }
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
 let catSub = JSON.parse(localStorage.getItem('cf_cat_sub') || 'null') || JSON.parse(JSON.stringify(CAT_SUB_DEFAULT));
-
-function saveCatSub() {
-  localStorage.setItem('cf_cat_sub', JSON.stringify(catSub));
-}
-
+let favorites = JSON.parse(localStorage.getItem('cf_favorites') || 'null') || JSON.parse(JSON.stringify(FAVORITES_DEFAULT));
 let currentSheet = 'Cash';
 let history = JSON.parse(localStorage.getItem('cf_history') || '[]');
+let queue = JSON.parse(localStorage.getItem('cf_queue') || '[]');
+let activeFav = null;
+
+function saveCatSub() { localStorage.setItem('cf_cat_sub', JSON.stringify(catSub)); }
+function saveFavorites() { localStorage.setItem('cf_favorites', JSON.stringify(favorites)); }
+function saveQueue() { localStorage.setItem('cf_queue', JSON.stringify(queue)); renderPendingBadge(); }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
@@ -459,10 +496,20 @@ window.onload = () => {
   renderPendingBadge();
 };
 
+// ── More details toggle ──────────────────────────────────────────────────────
+
+function toggleMore() {
+  const toggle = document.getElementById('more-toggle');
+  const fields = document.getElementById('more-fields');
+  toggle.classList.toggle('open');
+  fields.classList.toggle('open');
+}
+
 // ── Sheet switching ────────────────────────────────────────────────────────────
 
 function switchSheet(sheet) {
   currentSheet = sheet;
+  activeFav = null;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.sheet === sheet));
   const btn = document.getElementById('btn-submit');
   btn.dataset.sheet = sheet;
@@ -481,6 +528,90 @@ function switchSheet(sheet) {
 
   onMethodChange();
   buildCategoryDropdown();
+  renderFavChips();
+}
+
+// ── Favorites ────────────────────────────────────────────────────────────────
+
+function renderFavChips() {
+  const section = document.getElementById('fav-section');
+  const container = document.getElementById('fav-chips');
+  const sheetFavs = favorites.filter(f => f.sheet === currentSheet);
+
+  if (sheetFavs.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = '';
+  container.innerHTML = sheetFavs.map((f, i) => {
+    const idx = favorites.indexOf(f);
+    return `<button class="fav-chip" data-idx="${idx}" onclick="applyFav(${idx})">${escHtml(f.label)}</button>`;
+  }).join('');
+}
+
+function applyFav(idx) {
+  const f = favorites[idx];
+  if (!f) return;
+
+  // Switch sheet if needed
+  if (f.sheet !== currentSheet) {
+    switchSheet(f.sheet);
+  }
+
+  activeFav = idx;
+
+  // Highlight active chip
+  document.querySelectorAll('.fav-chip').forEach(c => c.classList.remove('active'));
+  const chip = document.querySelector(`.fav-chip[data-idx="${idx}"]`);
+  if (chip) chip.classList.add('active');
+
+  // Fill form
+  document.getElementById('f-venue').value = f.venue || '';
+  document.getElementById('f-activities').value = f.activities || '';
+  document.getElementById('f-cost').value = f.cost || '';
+
+  // Set method
+  const methodSel = document.getElementById('f-method');
+  if (SHEETS[currentSheet].methods.includes(f.method)) {
+    methodSel.value = f.method;
+  } else {
+    methodSel.value = '__other__';
+    document.getElementById('f-method-custom').value = f.method || '';
+    document.getElementById('f-method-custom').classList.add('visible');
+  }
+  onMethodChange();
+
+  // Set category
+  const catSel = document.getElementById('f-category');
+  if (f.category && catSub[f.category]) {
+    catSel.value = f.category;
+  } else if (f.category) {
+    catSel.value = '__other__';
+    document.getElementById('f-category-custom').value = f.category;
+    document.getElementById('f-category-custom').classList.add('visible');
+  } else {
+    catSel.value = '';
+  }
+  onCategoryChange();
+
+  // Set sub
+  if (f.sub) {
+    const subSel = document.getElementById('f-sub');
+    const subs = catSub[f.category] || [];
+    if (subs.includes(f.sub)) {
+      subSel.value = f.sub;
+    } else {
+      subSel.value = '__other__';
+      document.getElementById('f-sub-custom').value = f.sub;
+      document.getElementById('f-sub-custom').classList.add('visible');
+    }
+  }
+
+  // Focus on cost if it's 0 (variable amount)
+  if (!f.cost) {
+    document.getElementById('f-cost').focus();
+  }
 }
 
 // ── Method → account column preview ──────────────────────────────────────────
@@ -492,8 +623,8 @@ function onMethodChange() {
 
   if (sel.value === '__other__') {
     customInput.classList.add('visible');
-    customInput.focus();
-    preview.innerHTML = `<span style="color:var(--text-dim)">custom method</span>`;
+    if (!customInput.value) customInput.focus();
+    preview.innerHTML = '<span style="color:var(--text-dim)">custom method</span>';
   } else {
     customInput.classList.remove('visible');
     customInput.value = '';
@@ -501,7 +632,7 @@ function onMethodChange() {
     if (col) {
       preview.innerHTML = `<span class="account-pill">${col}</span>`;
     } else {
-      preview.innerHTML = `<span style="color:var(--text-dim)">select method first</span>`;
+      preview.innerHTML = '<span style="color:var(--text-dim)">select method first</span>';
     }
   }
 }
@@ -530,8 +661,7 @@ function onCategoryChange() {
 
   if (sel.value === '__other__') {
     customInput.classList.add('visible');
-    customInput.focus();
-    // Clear sub to free-text too
+    if (!customInput.value) customInput.focus();
     document.getElementById('f-sub').innerHTML = '<option value="">— select —</option>';
     document.getElementById('f-sub').value = '';
     document.getElementById('f-sub').disabled = true;
@@ -573,22 +703,11 @@ function onSubChange() {
 
 // ── Offline Queue ─────────────────────────────────────────────────────────────
 
-let queue = JSON.parse(localStorage.getItem('cf_queue') || '[]');
-
-function saveQueue() {
-  localStorage.setItem('cf_queue', JSON.stringify(queue));
-  renderPendingBadge();
-}
-
 function renderPendingBadge() {
   const badge = document.getElementById('pending-badge');
   const count = document.getElementById('pending-count');
-  if (queue.length > 0) {
-    count.textContent = queue.length;
-    badge.style.display = '';
-  } else {
-    badge.style.display = 'none';
-  }
+  if (queue.length > 0) { count.textContent = queue.length; badge.style.display = ''; }
+  else { badge.style.display = 'none'; }
 }
 
 async function syncQueue() {
@@ -604,36 +723,20 @@ async function syncQueue() {
     const urlKey = `cf_url_${item.sheet.toLowerCase()}`;
     const url = localStorage.getItem(urlKey);
     if (!url) { failed.push(item); continue; }
-
     try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item.payload)
-      });
-      if (!res.ok && res.status !== 202) { failed.push(item); }
-    } catch (e) {
-      failed.push(item);
-    }
+      const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(item.payload) });
+      if (!res.ok && res.status !== 202) failed.push(item);
+    } catch (e) { failed.push(item); }
   }
 
   queue = failed;
   saveQueue();
   badge.classList.remove('syncing');
-
-  if (failed.length === 0) {
-    showToast(`✓ All synced`, 'success');
-  } else {
-    showToast(`${failed.length} failed — tap to retry`, 'error');
-  }
+  showToast(failed.length === 0 ? '✓ All synced' : `${failed.length} failed — tap to retry`, failed.length === 0 ? 'success' : 'error');
 }
 
-// Auto-sync when coming back online
 window.addEventListener('online', () => {
-  if (queue.length > 0) {
-    showToast('Back online — syncing…', 'success');
-    setTimeout(syncQueue, 1000);
-  }
+  if (queue.length > 0) { showToast('Back online — syncing…', 'success'); setTimeout(syncQueue, 1000); }
 });
 
 // ── Submit ────────────────────────────────────────────────────────────────────
@@ -659,11 +762,7 @@ async function submitTransaction() {
 
   const urlKey = `cf_url_${currentSheet.toLowerCase()}`;
   const url = localStorage.getItem(urlKey);
-
-  if (!url) {
-    showToast('No URL set — open ⚙ setup', 'error');
-    return;
-  }
+  if (!url) { showToast('No URL set — open ⚙ setup', 'error'); return; }
 
   const payload = { date, venue, activities, method, category, sub, sub2, sub3, cost, remarks };
 
@@ -671,55 +770,42 @@ async function submitTransaction() {
   btn.disabled = true;
   btn.classList.add('loading');
 
-  // If offline, queue it
   if (!navigator.onLine) {
     queue.push({ sheet: currentSheet, payload });
     saveQueue();
-    const entry = { sheet: currentSheet, date, venue: venue || '—', cost, category, ts: Date.now() };
-    history.unshift(entry);
-    if (history.length > 20) history = history.slice(0, 20);
-    localStorage.setItem('cf_history', JSON.stringify(history));
-    renderHistory();
-    showToast(`Queued offline — will sync later`, 'success');
-    resetForm();
-    btn.disabled = false;
-    btn.classList.remove('loading');
+    addHistory(venue, cost, category);
+    showToast('Queued offline — will sync later', 'success');
+    resetForm(); btn.disabled = false; btn.classList.remove('loading');
     return;
   }
 
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
+    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
     if (res.ok || res.status === 202) {
-      const entry = { sheet: currentSheet, date, venue: venue || '—', cost, category, ts: Date.now() };
-      history.unshift(entry);
-      if (history.length > 20) history = history.slice(0, 20);
-      localStorage.setItem('cf_history', JSON.stringify(history));
-      renderHistory();
+      addHistory(venue, cost, category);
       showToast(`✓ Added to ${currentSheet}`, 'success');
       resetForm();
     } else {
       showToast(`Error ${res.status} — check your URL`, 'error');
     }
   } catch (e) {
-    // Network error — queue it
     queue.push({ sheet: currentSheet, payload });
     saveQueue();
-    const entry = { sheet: currentSheet, date, venue: venue || '—', cost, category, ts: Date.now() };
-    history.unshift(entry);
-    if (history.length > 20) history = history.slice(0, 20);
-    localStorage.setItem('cf_history', JSON.stringify(history));
-    renderHistory();
-    showToast(`Queued — will sync when online`, 'success');
+    addHistory(venue, cost, category);
+    showToast('Queued — will sync when online', 'success');
     resetForm();
   } finally {
     btn.disabled = false;
     btn.classList.remove('loading');
   }
+}
+
+function addHistory(venue, cost, category) {
+  const entry = { sheet: currentSheet, date: document.getElementById('f-date').value, venue: venue || '—', cost, category, ts: Date.now() };
+  history.unshift(entry);
+  if (history.length > 20) history = history.slice(0, 20);
+  localStorage.setItem('cf_history', JSON.stringify(history));
+  renderHistory();
 }
 
 // ── Reset form ────────────────────────────────────────────────────────────────
@@ -741,6 +827,8 @@ function resetForm() {
   document.getElementById('f-sub2').value = '';
   document.getElementById('f-sub3').value = '';
   document.getElementById('f-remarks').value = '';
+  activeFav = null;
+  document.querySelectorAll('.fav-chip').forEach(c => c.classList.remove('active'));
   onMethodChange();
   onCategoryChange();
 }
@@ -765,23 +853,65 @@ function renderHistory() {
 // ── Config ────────────────────────────────────────────────────────────────────
 
 function openConfig() {
-  document.getElementById('cfg-cash-url').value   = localStorage.getItem('cf_url_cash')   || '';
+  document.getElementById('cfg-cash-url').value = localStorage.getItem('cf_url_cash') || '';
   document.getElementById('cfg-credit-url').value = localStorage.getItem('cf_url_credit') || '';
   renderCatManager();
+  renderFavManager();
   document.getElementById('config-panel').classList.add('open');
 }
 
-function closeConfig() {
-  document.getElementById('config-panel').classList.remove('open');
-}
+function closeConfig() { document.getElementById('config-panel').classList.remove('open'); }
 
 function saveConfig() {
-  const cash   = document.getElementById('cfg-cash-url').value.trim();
+  const cash = document.getElementById('cfg-cash-url').value.trim();
   const credit = document.getElementById('cfg-credit-url').value.trim();
-  if (cash)   localStorage.setItem('cf_url_cash', cash);
+  if (cash) localStorage.setItem('cf_url_cash', cash);
   if (credit) localStorage.setItem('cf_url_credit', credit);
   closeConfig();
   showToast('URLs saved', 'success');
+}
+
+// ── Favorites Manager ─────────────────────────────────────────────────────────
+
+function renderFavManager() {
+  const el = document.getElementById('fav-manager');
+  el.innerHTML = favorites.map((f, i) => `
+    <div class="fav-manager-item">
+      <div style="flex:1">
+        <div class="fav-manager-label">${escHtml(f.label)}</div>
+        <div class="fav-manager-detail">${escHtml(f.sheet)} · ${escHtml(f.method)} · $${f.cost.toFixed(2)}</div>
+      </div>
+      <button class="fav-manager-edit" onclick="editFav(${i})">edit</button>
+      <button class="cat-delete" onclick="deleteFav(${i})" title="Delete">✕</button>
+    </div>
+  `).join('');
+}
+
+function editFav(idx) {
+  const f = favorites[idx];
+  const label = prompt('Label:', f.label); if (label === null) return;
+  const venue = prompt('Venue:', f.venue); if (venue === null) return;
+  const activities = prompt('Activities:', f.activities); if (activities === null) return;
+  const method = prompt('Method:', f.method); if (method === null) return;
+  const category = prompt('Category:', f.category); if (category === null) return;
+  const sub = prompt('Sub:', f.sub); if (sub === null) return;
+  const costStr = prompt('Cost (0 for variable):', f.cost); if (costStr === null) return;
+  const sheet = prompt('Sheet (Cash/Credit):', f.sheet); if (sheet === null) return;
+
+  favorites[idx] = { label, venue, activities, method, category, sub, cost: parseFloat(costStr) || 0, sheet };
+  saveFavorites();
+  renderFavManager();
+  renderFavChips();
+  showToast(`"${label}" updated`, 'success');
+}
+
+function deleteFav(idx) {
+  if (!confirm(`Delete "${favorites[idx].label}"?`)) return;
+  favorites.splice(idx, 1);
+  saveFavorites();
+  renderFavManager();
+  renderFavChips();
+  showToast('Deleted', 'success');
 }
 
 // ── Category Manager ──────────────────────────────────────────────────────────
@@ -796,19 +926,18 @@ function renderCatManager() {
         <span class="cat-row-name">${escHtml(cat)}</span>
         <span style="font-family:var(--mono);font-size:10px;color:var(--text-muted)">${subs.length} sub${subs.length !== 1 ? 's' : ''}</span>
         <span class="cat-row-chevron">▶</span>
-        <button class="cat-delete" onclick="event.stopPropagation();deleteCategory('${escAttr(cat)}')" title="Delete category">✕</button>
+        <button class="cat-delete" onclick="event.stopPropagation();deleteCategory('${escAttr(cat)}')" title="Delete">✕</button>
       </div>
       <div class="sub-panel ${expandedCat === cat ? 'open' : ''}" id="sub-panel-${escId(cat)}">
-        <div class="sub-tags" id="sub-tags-${escId(cat)}">
+        <div class="sub-tags">
           ${subs.map(s => `
-            <div class="sub-tag">
-              ${escHtml(s)}
+            <div class="sub-tag">${escHtml(s)}
               <button onclick="deleteSub('${escAttr(cat)}','${escAttr(s)}')" title="Remove">✕</button>
             </div>
           `).join('')}
         </div>
         <div class="sub-add-row">
-          <input type="text" placeholder="New sub-category…" id="sub-input-${escId(cat)}"
+          <input type="text" placeholder="New sub…" id="sub-input-${escId(cat)}"
             onkeydown="if(event.key==='Enter')addSub('${escAttr(cat)}')">
           <button class="btn-add-sub" onclick="addSub('${escAttr(cat)}')">+ Add</button>
         </div>
@@ -817,9 +946,9 @@ function renderCatManager() {
   `).join('');
 }
 
-function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function escAttr(s) { return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
-function escId(s) { return s.replace(/[^a-zA-Z0-9]/g, '_'); }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function escId(s) { return String(s).replace(/[^a-zA-Z0-9]/g, '_'); }
 
 function toggleCat(cat) {
   expandedCat = expandedCat === cat ? null : cat;
@@ -834,23 +963,18 @@ function addCategory() {
   const input = document.getElementById('new-cat-input');
   const name = input.value.trim();
   if (!name) return;
-  if (catSub[name]) { showToast('Category already exists', 'error'); return; }
+  if (catSub[name]) { showToast('Already exists', 'error'); return; }
   catSub[name] = [];
-  saveCatSub();
-  buildCategoryDropdown();
-  input.value = '';
-  expandedCat = name;
-  renderCatManager();
+  saveCatSub(); buildCategoryDropdown();
+  input.value = ''; expandedCat = name; renderCatManager();
   showToast(`"${name}" added`, 'success');
 }
 
 function deleteCategory(cat) {
-  if (!confirm(`Delete "${cat}" and all its sub-categories?`)) return;
+  if (!confirm(`Delete "${cat}" and all subs?`)) return;
   delete catSub[cat];
   if (expandedCat === cat) expandedCat = null;
-  saveCatSub();
-  buildCategoryDropdown();
-  renderCatManager();
+  saveCatSub(); buildCategoryDropdown(); renderCatManager();
   showToast(`"${cat}" deleted`, 'success');
 }
 
@@ -860,18 +984,13 @@ function addSub(cat) {
   if (!name) return;
   if (catSub[cat].includes(name)) { showToast('Already exists', 'error'); return; }
   catSub[cat].push(name);
-  saveCatSub();
-  buildCategoryDropdown();
-  input.value = '';
-  renderCatManager();
+  saveCatSub(); buildCategoryDropdown(); input.value = ''; renderCatManager();
   showToast(`"${name}" added to ${cat}`, 'success');
 }
 
 function deleteSub(cat, sub) {
   catSub[cat] = catSub[cat].filter(s => s !== sub);
-  saveCatSub();
-  buildCategoryDropdown();
-  renderCatManager();
+  saveCatSub(); buildCategoryDropdown(); renderCatManager();
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
