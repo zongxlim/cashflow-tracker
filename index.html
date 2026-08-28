@@ -316,7 +316,7 @@
     <input type="text" id="cfg-credit-table" placeholder="CreditTable">
   </div>
 
-  <button class="config-save" onclick="saveConfig()">Save & Close</button>
+  <button class="config-save" onclick="saveConfig()">Save</button>
 
   <div class="divider"></div>
 
@@ -414,8 +414,18 @@ function initMsal() {
     cache: { cacheLocation: 'localStorage' }
   };
   msalInstance = new msal.PublicClientApplication(msalConfig);
-  const accounts = msalInstance.getAllAccounts();
-  if (accounts.length > 0) silentLogin(accounts[0]);
+
+  // Handle redirect response (comes back here after login)
+  msalInstance.handleRedirectPromise().then(res => {
+    if (res) {
+      accessToken = res.accessToken;
+      updateAuthUI(true, res.account.username);
+      showToast('Signed in', 'success');
+    } else {
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) silentLogin(accounts[0]);
+    }
+  }).catch(e => { console.error('Redirect error:', e); });
 }
 
 async function silentLogin(account) {
@@ -431,22 +441,12 @@ async function login() {
   if (!clientId) { showToast('Set Client ID in ⚙ setup first', 'error'); return; }
   if (!msalInstance) initMsal();
   if (!msalInstance) return;
-  try {
-    const res = await msalInstance.loginPopup({ scopes: ['Files.ReadWrite'] });
-    accessToken = res.accessToken;
-    updateAuthUI(true, res.account.username);
-    showToast('Signed in', 'success');
-  } catch (e) {
-    showToast('Sign-in cancelled or failed', 'error');
-  }
+  msalInstance.loginRedirect({ scopes: ['Files.ReadWrite'] });
 }
 
 async function logout() {
   if (!msalInstance) return;
-  await msalInstance.logoutPopup();
-  accessToken = null;
-  updateAuthUI(false);
-  showToast('Signed out', 'success');
+  msalInstance.logoutRedirect();
 }
 
 async function getToken() {
@@ -461,14 +461,9 @@ async function getToken() {
     accessToken = res.accessToken;
     return accessToken;
   } catch (e) {
-    try {
-      const res = await msalInstance.acquireTokenPopup({ scopes: ['Files.ReadWrite'] });
-      accessToken = res.accessToken;
-      return accessToken;
-    } catch (e2) {
-      showToast('Auth failed — try signing in again', 'error');
-      return null;
-    }
+    // Silent failed, redirect to login
+    msalInstance.acquireTokenRedirect({ scopes: ['Files.ReadWrite'] });
+    return null;
   }
 }
 
@@ -800,7 +795,8 @@ function saveConfig() {
   if (creditTable) localStorage.setItem('cf_table_credit', creditTable);
   columnCache = {}; // clear cache on config change
   if (clientId && !msalInstance) initMsal();
-  closeConfig(); showToast('Settings saved', 'success');
+  showToast('✓ Settings saved', 'success');
+  setTimeout(closeConfig, 600);
 }
 
 // ── Favorites Manager ─────────────────────────────────────────────────────────
