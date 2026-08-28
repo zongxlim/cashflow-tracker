@@ -499,6 +499,888 @@ async function getTableColumns(tableName) {
   if (!token) return null;
   const filePath = localStorage.getItem('cf_file_path');
   if (!filePath) { showToast('Set file path in ⚙ setup', 'error'); return null; }
+  const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
+
+  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodedPath}:/workbook/tables/${encodeURIComponent(tableName)}/columns`;
+  const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showToast(`Table error: ${err?.error?.message || res.status}`, 'error');
+    return null;
+  }
+  const data = await res.json();
+  const cols = data.value.map(c => c.name);
+  columnCache[tableName] = cols;
+  return cols;
+}
+
+async function addRowToExcel(sheetKey, payload) {
+  const token = await getToken();
+  if (!token) return false;
+
+  const filePath = localStorage.getItem('cf_file_path');
+  const tableName = localStorage.getItem(`cf_table_${sheetKey.toLowerCase()}`);
+  if (!filePath || !tableName) {
+    showToast('Set file path and table names in ⚙ setup', 'error');
+    return false;
+  }
+  const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
+
+  const cols = await getTableColumns(tableName);
+  if (!cols) return false;
+
+  // Map payload fields to column names (case-insensitive)
+  const fieldMap = {};
+  const payloadMap = {
+    'date': payload.date, 'venue': payload.venue, 'activities': payload.activities,
+    'method': payload.method, 'category': payload.category, 'sub': payload.sub,
+    'sub2': payload.sub2, 'sub3': payload.sub3, 'cost': payload.cost, 'remarks': payload.remarks
+  };
+  Object.entries(payloadMap).forEach(([k, v]) => { fieldMap[k.toLowerCase()] = v; });
+
+  const values = cols.map(colName => {
+    const key = colName.toLowerCase();
+    return fieldMap[key] !== undefined ? fieldMap[key] : null;
+  });
+
+  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodedPath}:/workbook/tables/${encodeURIComponent(tableName)}/rows/add`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values: [values] })
+  });
+
+  if (res.ok || res.status === 201) return true;
+  const err = await res.json().catch(() => ({}));
+  showToast(`Write error: ${err?.error?.message || res.status}`, 'error');
+  return false;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+window.onload = () => {
+  const today = new Date();
+  document.getElementById('f-date').value = today.toISOString().split('T')[0];
+  document.getElementById('today-label').textContent =
+    today.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
+  initMsal();
+  switchSheet('Cash');
+  renderHistory();
+  renderPendingBadge();
+};
+
+function toggleMore() {
+  document.getElementById('more-toggle').classList.toggle('open');
+  document.getElementById('more-fields').classList.toggle('open');
+}
+
+// ── Sheet switching ────────────────────────────────────────────────────────────
+
+function switchSheet(sheet) {
+  currentSheet = sheet; activeFav = null;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.sheet === sheet));
+  const btn = document.getElementById('btn-submit');
+  btn.dataset.sheet = sheet;
+  btn.querySelector('.btn-text').textContent = `Add to ${sheet}`;
+  const sel = document.getElementById('f-method');
+  sel.innerHTML = '<option value="">— select —</option>';
+  SHEETS[sheet].methods.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; sel.appendChild(o); });
+  sel.appendChild(Object.assign(document.createElement('option'), { value: '__other__', textContent: '✎ Other…' }));
+  document.getElementById('f-method-custom').classList.remove('visible');
+  document.getElementById('f-method-custom').value = '';
+  onMethodChange(); buildCategoryDropdown(); renderFavChips();
+}
+
+// ── Favorites ────────────────────────────────────────────────────────────────
+
+function renderFavChips() {
+  const section = document.getElementById('fav-section');
+  const container = document.getElementById('fav-chips');
+  const sheetFavs = favorites.filter(f => f.sheet === currentSheet);
+  if (sheetFavs.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  container.innerHTML = sheetFavs.map(f => {
+    const idx = favorites.indexOf(f);
+    return `<button class="fav-chip" data-idx="${idx}" onclick="applyFav(${idx})">${escHtml(f.label)}</button>`;
+  }).join('');
+}
+
+function applyFav(idx) {
+  // Toggle off if tapping the same favorite
+  if (activeFav === idx) {
+    resetForm();
+    return;
+  }
+  const f = favorites[idx];
+  if (!f) return;
+  if (f.sheet !== currentSheet) switchSheet(f.sheet);
+  activeFav = idx;
+  document.querySelectorAll('.fav-chip').forEach(c => c.classList.remove('active'));
+  const chip = document.querySelector(`.fav-chip[data-idx="${idx}"]`);
+  if (chip) chip.classList.add('active');
+  document.getElementById('f-venue').value = f.venue || '';
+  document.getElementById('f-activities').value = f.activities || '';
+  document.getElementById('f-cost').value = f.cost || '';
+  const methodSel = document.getElementById('f-method');
+  if (SHEETS[currentSheet].methods.includes(f.method)) { methodSel.value = f.method; }
+  else { methodSel.value = '__other__'; document.getElementById('f-method-custom').value = f.method || ''; document.getElementById('f-method-custom').classList.add('visible'); }
+  onMethodChange();
+  const catSelEl = document.getElementById('f-category');
+  if (f.category && catSub[f.category]) { catSelEl.value = f.category; }
+  else if (f.category) { catSelEl.value = '__other__'; document.getElementById('f-category-custom').value = f.category; document.getElementById('f-category-custom').classList.add('visible'); }
+  else { catSelEl.value = ''; }
+  onCategoryChange();
+  if (f.sub) {
+    const subSel = document.getElementById('f-sub');
+    const subs = catSub[f.category] || [];
+    if (subs.includes(f.sub)) { subSel.value = f.sub; }
+    else { subSel.value = '__other__'; document.getElementById('f-sub-custom').value = f.sub; document.getElementById('f-sub-custom').classList.add('visible'); }
+  }
+  if (!f.cost) document.getElementById('f-cost').focus();
+}
+
+// ── Method / Category / Sub ──────────────────────────────────────────────────
+
+function onMethodChange() {
+  const sel = document.getElementById('f-method');
+  const ci = document.getElementById('f-method-custom');
+  const preview = document.getElementById('account-preview');
+  if (sel.value === '__other__') { ci.classList.add('visible'); if (!ci.value) ci.focus(); preview.innerHTML = '<span style="color:var(--text-dim)">custom method</span>'; }
+  else { ci.classList.remove('visible'); ci.value = ''; const col = SHEETS[currentSheet].methodToColumn[sel.value]; preview.innerHTML = col ? `<span class="account-pill">${col}</span>` : '<span style="color:var(--text-dim)">select method first</span>'; }
+}
+
+function buildCategoryDropdown() {
+  const sel = document.getElementById('f-category'); const cur = sel.value;
+  sel.innerHTML = '<option value="">— select —</option>';
+  Object.keys(catSub).forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; if (c === cur) o.selected = true; sel.appendChild(o); });
+  sel.appendChild(Object.assign(document.createElement('option'), { value: '__other__', textContent: '✎ Other…' }));
+  document.getElementById('f-category-custom').classList.remove('visible');
+  document.getElementById('f-category-custom').value = '';
+  onCategoryChange();
+}
+
+function onCategoryChange() {
+  const sel = document.getElementById('f-category'); const ci = document.getElementById('f-category-custom');
+  if (sel.value === '__other__') { ci.classList.add('visible'); if (!ci.value) ci.focus(); document.getElementById('f-sub').innerHTML = '<option value="">— select —</option>'; document.getElementById('f-sub').disabled = true; document.getElementById('f-sub-custom').classList.add('visible'); return; }
+  ci.classList.remove('visible'); ci.value = '';
+  const cat = sel.value; const subSel = document.getElementById('f-sub');
+  subSel.innerHTML = '<option value="">— select —</option>';
+  const subs = catSub[cat] || [];
+  subs.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; subSel.appendChild(o); });
+  if (cat) subSel.appendChild(Object.assign(document.createElement('option'), { value: '__other__', textContent: '✎ Other…' }));
+  subSel.disabled = !cat;
+  document.getElementById('f-sub-custom').classList.remove('visible'); document.getElementById('f-sub-custom').value = '';
+}
+
+function onSubChange() {
+  const sel = document.getElementById('f-sub'); const ci = document.getElementById('f-sub-custom');
+  if (sel.value === '__other__') { ci.classList.add('visible'); ci.focus(); }
+  else { ci.classList.remove('visible'); ci.value = ''; }
+}
+
+// ── Offline Queue ─────────────────────────────────────────────────────────────
+
+function renderPendingBadge() {
+  const badge = document.getElementById('pending-badge');
+  if (queue.length > 0) { document.getElementById('pending-count').textContent = queue.length; badge.style.display = ''; }
+  else { badge.style.display = 'none'; }
+}
+
+async function syncQueue() {
+  if (queue.length === 0) return;
+  if (!navigator.onLine) { showToast('Still offline — will sync when connected', 'error'); return; }
+  const badge = document.getElementById('pending-badge');
+  badge.classList.add('syncing');
+  showToast(`Syncing ${queue.length} transaction${queue.length > 1 ? 's' : ''}…`, 'success');
+  const failed = [];
+  for (const item of queue) {
+    const ok = await addRowToExcel(item.sheet, item.payload);
+    if (!ok) failed.push(item);
+  }
+  queue = failed; saveQueue();
+  badge.classList.remove('syncing');
+  showToast(failed.length === 0 ? '✓ All synced' : `${failed.length} failed — tap to retry`, failed.length === 0 ? 'success' : 'error');
+}
+
+window.addEventListener('online', () => { if (queue.length > 0) { showToast('Back online — syncing…', 'success'); setTimeout(syncQueue, 1000); } });
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+
+async function submitTransaction() {
+  const date = document.getElementById('f-date').value;
+  const cost = parseFloat(document.getElementById('f-cost').value);
+  const venue = document.getElementById('f-venue').value.trim();
+  const activities = document.getElementById('f-activities').value.trim();
+  const mSel = document.getElementById('f-method').value;
+  const method = mSel === '__other__' ? document.getElementById('f-method-custom').value.trim() : mSel;
+  const cSel = document.getElementById('f-category').value;
+  const category = cSel === '__other__' ? document.getElementById('f-category-custom').value.trim() : cSel;
+  const sSel = document.getElementById('f-sub').value;
+  const sub = sSel === '__other__' ? document.getElementById('f-sub-custom').value.trim() : (cSel === '__other__' ? document.getElementById('f-sub-custom').value.trim() : sSel);
+  const sub2 = document.getElementById('f-sub2').value.trim();
+  const sub3 = document.getElementById('f-sub3').value.trim();
+  const remarks = document.getElementById('f-remarks').value.trim();
+
+  if (!date) return showToast('Date is required', 'error');
+  if (isNaN(cost) || cost < 0) return showToast('Enter a valid cost', 'error');
+  if (!method) return showToast('Enter a method', 'error');
+
+  const payload = { date, venue, activities, method, category, sub, sub2, sub3, cost, remarks };
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true; btn.classList.add('loading');
+
+  if (!navigator.onLine) {
+    queue.push({ sheet: currentSheet, payload }); saveQueue();
+    addHistory(venue, cost, category);
+    showToast('Queued offline — will sync later', 'success');
+    resetForm(); btn.disabled = false; btn.classList.remove('loading'); return;
+  }
+
+  const ok = await addRowToExcel(currentSheet, payload);
+  if (ok) {
+    addHistory(venue, cost, category);
+    showToast(`✓ Added to ${currentSheet}`, 'success');
+    resetForm();
+  } else if (!accessToken) {
+    // Auth issue — queue it
+    queue.push({ sheet: currentSheet, payload }); saveQueue();
+    addHistory(venue, cost, category);
+    showToast('Queued — sign in to sync', 'success');
+    resetForm();
+  }
+  btn.disabled = false; btn.classList.remove('loading');
+}
+
+function addHistory(venue, cost, category) {
+  const entry = { sheet: currentSheet, date: document.getElementById('f-date').value, venue: venue || '—', cost, category, ts: Date.now() };
+  history.unshift(entry); if (history.length > 20) history = history.slice(0, 20);
+  localStorage.setItem('cf_history', JSON.stringify(history)); renderHistory();
+}
+
+function resetForm() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('f-date').value = today;
+  ['f-cost','f-venue','f-activities','f-method-custom','f-category-custom','f-sub-custom','f-sub2','f-sub3','f-remarks'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-method').value = '';
+  document.getElementById('f-category').value = '';
+  ['f-method-custom','f-category-custom','f-sub-custom'].forEach(id => document.getElementById(id).classList.remove('visible'));
+  activeFav = null;
+  document.querySelectorAll('.fav-chip').forEach(c => c.classList.remove('active'));
+  onMethodChange(); onCategoryChange();
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+
+function renderHistory() {
+  const el = document.getElementById('history-section');
+  if (history.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="history-label">Recent entries</div>` + history.slice(0, 5).map(h => `
+    <div class="history-item sheet-${h.sheet}"><div class="hi-left"><div class="hi-venue">${escHtml(h.venue)}</div><div class="hi-meta">${h.date} · ${h.sheet}${h.category ? ' · ' + escHtml(h.category) : ''}</div></div><div class="hi-amount">$${Number(h.cost).toFixed(2)}</div></div>
+  `).join('');
+}
+
+// ── Config ────────────────────────────────────────────────────────────────────
+
+function openConfig() {
+  document.getElementById('cfg-client-id').value = localStorage.getItem('cf_client_id') || '';
+  document.getElementById('cfg-file-path').value = localStorage.getItem('cf_file_path') || '';
+  document.getElementById('cfg-cash-table').value = localStorage.getItem('cf_table_cash') || '';
+  document.getElementById('cfg-credit-table').value = localStorage.getItem('cf_table_credit') || '';
+  renderCatManager(); renderFavManager();
+  document.getElementById('config-panel').classList.add('open');
+}
+function closeConfig() { document.getElementById('config-panel').classList.remove('open'); }
+
+function saveConfig() {
+  const clientId = document.getElementById('cfg-client-id').value.trim();
+  const filePath = document.getElementById('cfg-file-path').value.trim();
+  const cashTable = document.getElementById('cfg-cash-table').value.trim();
+  const creditTable = document.getElementById('cfg-credit-table').value.trim();
+  if (clientId) localStorage.setItem('cf_client_id', clientId);
+  if (filePath) localStorage.setItem('cf_file_path', filePath);
+  if (cashTable) localStorage.setItem('cf_table_cash', cashTable);
+  if (creditTable) localStorage.setItem('cf_table_credit', creditTable);
+  columnCache = {}; // clear cache on config change
+  if (clientId && !msalInstance) initMsal();
+  showToast('✓ Settings saved', 'success');
+  setTimeout(closeConfig, 600);
+}
+
+// ── Favorites Manager ─────────────────────────────────────────────────────────
+
+function renderFavManager() {
+  document.getElementById('fav-manager').innerHTML = favorites.map((f, i) => `
+    <div class="fav-manager-item"><div style="flex:1"><div class="fav-manager-label">${escHtml(f.label)}</div><div class="fav-manager-detail">${escHtml(f.sheet)} · ${escHtml(f.method)} · $${f.cost.toFixed(2)}</div></div>
+    <button class="fav-manager-edit" onclick="editFav(${i})">edit</button><button class="cat-delete" onclick="deleteFav(${i})">✕</button></div>
+  `).join('');
+}
+
+function editFav(i) {
+  const f = favorites[i];
+  const label = prompt('Label:', f.label); if (label === null) return;
+  const venue = prompt('Venue:', f.venue); if (venue === null) return;
+  const activities = prompt('Activities:', f.activities); if (activities === null) return;
+  const method = prompt('Method:', f.method); if (method === null) return;
+  const category = prompt('Category:', f.category); if (category === null) return;
+  const sub = prompt('Sub:', f.sub); if (sub === null) return;
+  const costStr = prompt('Cost (0 for variable):', f.cost); if (costStr === null) return;
+  const sheet = prompt('Sheet (Cash/Credit):', f.sheet); if (sheet === null) return;
+  favorites[i] = { label, venue, activities, method, category, sub, cost: parseFloat(costStr) || 0, sheet };
+  saveFavorites(); renderFavManager(); renderFavChips(); showToast(`"${label}" updated`, 'success');
+}
+
+function deleteFav(i) {
+  if (!confirm(`Delete "${favorites[i].label}"?`)) return;
+  favorites.splice(i, 1); saveFavorites(); renderFavManager(); renderFavChips(); showToast('Deleted', 'success');
+}
+
+// ── Category Manager ──────────────────────────────────────────────────────────
+
+let expandedCat = null;
+
+function renderCatManager() {
+  document.getElementById('cat-manager').innerHTML = Object.entries(catSub).map(([cat, subs]) => `
+    <div><div class="cat-row ${expandedCat === cat ? 'expanded' : ''}" onclick="toggleCat('${escAttr(cat)}')">
+      <span class="cat-row-name">${escHtml(cat)}</span><span style="font-family:var(--mono);font-size:10px;color:var(--text-muted)">${subs.length} sub${subs.length !== 1 ? 's' : ''}</span>
+      <span class="cat-row-chevron">▶</span><button class="cat-delete" onclick="event.stopPropagation();deleteCategory('${escAttr(cat)}')">✕</button>
+    </div><div class="sub-panel ${expandedCat === cat ? 'open' : ''}" id="sub-panel-${escId(cat)}">
+      <div class="sub-tags">${subs.map(s => `<div class="sub-tag">${escHtml(s)}<button onclick="deleteSub('${escAttr(cat)}','${escAttr(s)}')">✕</button></div>`).join('')}</div>
+      <div class="sub-add-row"><input type="text" placeholder="New sub…" id="sub-input-${escId(cat)}" onkeydown="if(event.key==='Enter')addSub('${escAttr(cat)}')"><button class="btn-add-sub" onclick="addSub('${escAttr(cat)}')">+ Add</button></div>
+    </div></div>
+  `).join('');
+}
+
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function escId(s) { return String(s).replace(/[^a-zA-Z0-9]/g, '_'); }
+
+function toggleCat(cat) { expandedCat = expandedCat === cat ? null : cat; renderCatManager(); if (expandedCat) { const i = document.getElementById(`sub-input-${escId(cat)}`); if (i) setTimeout(() => i.focus(), 50); } }
+
+function addCategory() {
+  const input = document.getElementById('new-cat-input'); const name = input.value.trim();
+  if (!name) return; if (catSub[name]) { showToast('Already exists', 'error'); return; }
+  catSub[name] = []; saveCatSub(); buildCategoryDropdown(); input.value = ''; expandedCat = name; renderCatManager(); showToast(`"${name}" added`, 'success');
+}
+function deleteCategory(cat) { if (!confirm(`Delete "${cat}"?`)) return; delete catSub[cat]; if (expandedCat === cat) expandedCat = null; saveCatSub(); buildCategoryDropdown(); renderCatManager(); showToast(`"${cat}" deleted`, 'success'); }
+
+function addSub(cat) {
+  const input = document.getElementById(`sub-input-${escId(cat)}`); const name = input.value.trim();
+  if (!name) return; if (catSub[cat].includes(name)) { showToast('Already exists', 'error'); return; }
+  catSub[cat].push(name); saveCatSub(); buildCategoryDropdown(); input.value = ''; renderCatManager(); showToast(`"${name}" added to ${cat}`, 'success');
+}
+function deleteSub(cat, sub) { catSub[cat] = catSub[cat].filter(s => s !== sub); saveCatSub(); buildCategoryDropdown(); renderCatManager(); }
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+
+let toastTimer;
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast'); t.textContent = msg; t.className = `toast ${type} show`;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0f">
+<title>Cashflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f; --surface: #13131a; --border: #1e1e2e; --border-bright: #2e2e45;
+    --accent: #7c6af7; --accent-dim: #3d3580; --accent-glow: rgba(124,106,247,0.15);
+    --text: #e8e8f0; --text-muted: #6b6b85; --text-dim: #3a3a55;
+    --success: #4ade80; --error: #f87171;
+    --cash-color: #34d399; --credit-color: #7c6af7;
+    --mono: 'DM Mono', monospace; --sans: 'Syne', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100dvh; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
+  .app { position: relative; z-index: 1; max-width: 480px; margin: 0 auto; padding: 0 0 80px; }
+  .header { padding: 52px 24px 20px; display: flex; align-items: flex-end; justify-content: space-between; }
+  .header-left h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; line-height: 1; }
+  .header-left .subtitle { font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-top: 6px; letter-spacing: 0.05em; }
+
+  .auth-badge {
+    font-family: var(--mono); font-size: 10px; padding: 6px 12px; border-radius: 20px; cursor: pointer; letter-spacing: 0.03em;
+  }
+  .auth-badge.signed-out { background: rgba(248,113,113,0.15); border: 1px solid rgba(248,113,113,0.4); color: #f87171; }
+  .auth-badge.signed-in { background: rgba(74,222,128,0.15); border: 1px solid rgba(74,222,128,0.4); color: #4ade80; }
+
+  .pending-badge {
+    background: rgba(251,146,60,0.15); border: 1px solid rgba(251,146,60,0.4);
+    color: #fb923c; font-family: var(--mono); font-size: 11px; padding: 6px 12px;
+    border-radius: 20px; cursor: pointer; letter-spacing: 0.03em;
+    animation: pulse-pending 2s ease-in-out infinite;
+  }
+  .pending-badge.syncing { animation: none; opacity: 0.6; pointer-events: none; }
+  @keyframes pulse-pending { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+  .header-right { display: flex; gap: 8px; align-items: center; }
+
+  .tabs { padding: 0 24px; display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab {
+    flex: 1; padding: 10px 0; border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-muted); font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em;
+    border-radius: 8px; cursor: pointer; transition: all 0.15s; text-align: center;
+  }
+  .tab.active[data-sheet="Cash"] { background: rgba(52,211,153,0.1); border-color: var(--cash-color); color: var(--cash-color); }
+  .tab.active[data-sheet="Credit"] { background: rgba(124,106,247,0.1); border-color: var(--credit-color); color: var(--credit-color); }
+
+  .fav-section { padding: 0 24px 16px; }
+  .fav-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px; }
+  .fav-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .fav-chip {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+    padding: 6px 14px; font-family: var(--mono); font-size: 11px; color: var(--text-muted);
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .fav-chip:active { transform: scale(0.95); }
+  .fav-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+
+  .form-body { padding: 0 24px; display: flex; flex-direction: column; gap: 14px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-muted); text-transform: uppercase; }
+  label span.required { color: var(--accent); margin-left: 2px; }
+
+  input, select, textarea {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    font-family: var(--mono); font-size: 14px; padding: 12px 14px; border-radius: 8px;
+    width: 100%; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+    -webkit-appearance: none; appearance: none;
+  }
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b6b85' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px;
+  }
+  select option { background: #1a1a2a; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
+  textarea { resize: none; height: 72px; line-height: 1.5; }
+  .cost-wrap { position: relative; }
+  .cost-wrap::before { content: '$'; position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-family: var(--mono); font-size: 14px; pointer-events: none; }
+  .cost-wrap input { padding-left: 26px; }
+  .account-preview {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; font-family: var(--mono); font-size: 12px; color: var(--text-muted);
+    min-height: 40px; display: flex; align-items: center; gap: 8px;
+  }
+  .account-preview .account-pill { background: var(--accent-glow); border: 1px solid var(--accent-dim); color: var(--accent); padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+  .custom-input { display: none; margin-top: 6px; }
+  .custom-input.visible { display: block; }
+  .more-toggle { font-family: var(--mono); font-size: 11px; color: var(--text-muted); cursor: pointer; padding: 4px 0; letter-spacing: 0.03em; display: flex; align-items: center; gap: 6px; }
+  .more-toggle .arrow { transition: transform 0.2s; font-size: 9px; }
+  .more-toggle.open .arrow { transform: rotate(90deg); }
+  .more-fields { display: none; flex-direction: column; gap: 14px; }
+  .more-fields.open { display: flex; }
+
+  .submit-wrap { padding: 0 24px; margin-top: 8px; }
+  .btn-submit {
+    width: 100%; padding: 16px; border: none; border-radius: 10px; font-family: var(--sans);
+    font-size: 15px; font-weight: 600; letter-spacing: 0.02em; cursor: pointer;
+    transition: all 0.15s; position: relative; overflow: hidden;
+  }
+  .btn-submit[data-sheet="Cash"] { background: var(--cash-color); color: #0a0a0f; }
+  .btn-submit[data-sheet="Credit"] { background: var(--credit-color); color: #fff; }
+  .btn-submit:active { transform: scale(0.98); }
+  .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-submit .spinner { display: none; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto; }
+  .btn-submit.loading .btn-text { display: none; }
+  .btn-submit.loading .spinner { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px);
+    background: var(--surface); border: 1px solid var(--border-bright); border-radius: 10px;
+    padding: 14px 20px; font-family: var(--mono); font-size: 13px; z-index: 100;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); white-space: nowrap;
+    max-width: calc(100vw - 48px); display: flex; align-items: center; gap: 10px;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--success); color: var(--success); }
+  .toast.error { border-color: var(--error); color: var(--error); }
+
+  .config-toggle {
+    position: fixed; top: 16px; right: 20px; z-index: 50; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--text-muted); cursor: pointer; letter-spacing: 0.05em;
+  }
+  .config-panel {
+    position: fixed; inset: 0; background: var(--bg); z-index: 200; padding: 52px 24px 40px;
+    overflow-y: auto; transform: translateX(100%); transition: transform 0.25s ease;
+  }
+  .config-panel.open { transform: translateX(0); }
+  .config-panel h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .config-panel h3 { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .config-panel .desc { font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-bottom: 28px; line-height: 1.6; }
+  .config-close { position: absolute; top: 16px; right: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-family: var(--mono); font-size: 11px; color: var(--text-muted); cursor: pointer; }
+  .config-field { margin-bottom: 20px; }
+  .config-field label { font-family: var(--mono); font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 8px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .config-field input { width: 100%; }
+  .config-save { width: 100%; padding: 14px; background: var(--accent); border: none; border-radius: 10px; color: #fff; font-family: var(--sans); font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+  .divider { height: 1px; background: var(--border); margin: 24px 0; }
+
+  .history-section { padding: 28px 24px 0; }
+  .history-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 12px; }
+  .history-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+  .history-item .hi-left { flex: 1; }
+  .history-item .hi-venue { font-size: 13px; font-weight: 500; }
+  .history-item .hi-meta { font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+  .history-item .hi-amount { font-family: var(--mono); font-size: 14px; font-weight: 500; }
+  .history-item.sheet-Cash .hi-amount { color: var(--cash-color); }
+  .history-item.sheet-Credit .hi-amount { color: var(--credit-color); }
+
+  .cat-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
+  .cat-row.expanded { border-color: var(--accent); }
+  .cat-row-name { font-family: var(--mono); font-size: 13px; flex: 1; }
+  .cat-row-chevron { color: var(--text-muted); font-size: 10px; transition: transform 0.2s; }
+  .cat-row.expanded .cat-row-chevron { transform: rotate(90deg); }
+  .cat-delete { background: none; border: none; color: var(--error); font-size: 14px; cursor: pointer; padding: 0 2px; opacity: 0.6; }
+  .cat-delete:hover { opacity: 1; }
+  .sub-panel { display: none; padding: 8px 12px 12px 16px; border: 1px solid var(--accent); border-top: none; border-radius: 0 0 8px 8px; margin-top: -6px; margin-bottom: 6px; background: rgba(124,106,247,0.04); }
+  .sub-panel.open { display: block; }
+  .sub-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .sub-tag { background: var(--surface); border: 1px solid var(--border-bright); border-radius: 4px; padding: 3px 8px; font-family: var(--mono); font-size: 11px; display: flex; align-items: center; gap: 5px; }
+  .sub-tag button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; padding: 0; line-height: 1; }
+  .sub-tag button:hover { color: var(--error); }
+  .sub-add-row { display: flex; gap: 6px; }
+  .sub-add-row input { flex: 1; font-size: 12px; padding: 8px 10px; }
+  .btn-add-sub { background: var(--accent-glow); border: 1px solid var(--accent-dim); color: var(--accent); border-radius: 6px; padding: 8px 12px; font-family: var(--mono); font-size: 11px; cursor: pointer; white-space: nowrap; }
+  .add-cat-row { display: flex; gap: 8px; margin-top: 4px; }
+  .add-cat-row input { flex: 1; }
+  .btn-add-cat { background: var(--accent); border: none; color: #fff; border-radius: 8px; padding: 12px 16px; font-family: var(--mono); font-size: 12px; cursor: pointer; white-space: nowrap; }
+
+  .fav-manager-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+  .fav-manager-label { font-family: var(--mono); font-size: 12px; flex: 1; }
+  .fav-manager-detail { font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
+  .fav-manager-edit { background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 0 6px; }
+
+  .btn-ms-signin {
+    width: 100%; padding: 14px; background: #2f2f2f; border: 1px solid #555; border-radius: 10px;
+    color: #fff; font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px;
+  }
+  .btn-ms-signin:hover { background: #3a3a3a; }
+  .btn-ms-signout { width: 100%; padding: 10px; background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--text-muted); font-family: var(--mono); font-size: 11px; cursor: pointer; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="header">
+    <div class="header-left">
+      <h1>Cashflow</h1>
+      <div class="subtitle" id="today-label">— — —</div>
+    </div>
+    <div class="header-right">
+      <div class="pending-badge" id="pending-badge" onclick="syncQueue()" style="display:none;">
+        <span id="pending-count">0</span> pending
+      </div>
+      <div class="auth-badge signed-out" id="auth-badge" onclick="handleAuthClick()">sign in</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-sheet="Cash" onclick="switchSheet('Cash')">Cash</button>
+    <button class="tab" data-sheet="Credit" onclick="switchSheet('Credit')">Credit</button>
+  </div>
+
+  <div class="fav-section" id="fav-section" style="display:none;">
+    <div class="fav-label">Quick add</div>
+    <div class="fav-chips" id="fav-chips"></div>
+  </div>
+
+  <div class="form-body" id="form-body">
+    <div class="field-row">
+      <div class="field"><label>Date <span class="required">*</span></label><input type="date" id="f-date"></div>
+      <div class="field"><label>Cost <span class="required">*</span></label><div class="cost-wrap"><input type="number" id="f-cost" step="0.01" min="0" placeholder="0.00"></div></div>
+    </div>
+    <div class="field"><label>Venue</label><input type="text" id="f-venue" placeholder="Where / who" autocapitalize="words"></div>
+    <div class="field"><label>Activities</label><input type="text" id="f-activities" placeholder="What for"></div>
+    <div class="field-row">
+      <div class="field">
+        <label>Method <span class="required">*</span></label>
+        <select id="f-method" onchange="onMethodChange()"><option value="">— select —</option></select>
+        <input type="text" id="f-method-custom" class="custom-input" placeholder="Type method…">
+      </div>
+      <div class="field">
+        <label>Account → column</label>
+        <div class="account-preview" id="account-preview"><span style="color:var(--text-dim)">select method first</span></div>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Category</label>
+        <select id="f-category" onchange="onCategoryChange()"><option value="">— select —</option></select>
+        <input type="text" id="f-category-custom" class="custom-input" placeholder="Type category…">
+      </div>
+      <div class="field">
+        <label>Sub</label>
+        <select id="f-sub" onchange="onSubChange()"><option value="">— select —</option></select>
+        <input type="text" id="f-sub-custom" class="custom-input" placeholder="Type sub…">
+      </div>
+    </div>
+    <div class="more-toggle" id="more-toggle" onclick="toggleMore()"><span class="arrow">▶</span> More details</div>
+    <div class="more-fields" id="more-fields">
+      <div class="field-row">
+        <div class="field"><label>Sub2</label><input type="text" id="f-sub2" placeholder="Optional"></div>
+        <div class="field"><label>Sub3</label><input type="text" id="f-sub3" placeholder="Optional"></div>
+      </div>
+    </div>
+    <div class="field"><label>Remarks</label><textarea id="f-remarks" placeholder="Optional notes…"></textarea></div>
+  </div>
+
+  <div class="submit-wrap" style="margin-top:20px;">
+    <button class="btn-submit" id="btn-submit" data-sheet="Cash" onclick="submitTransaction()">
+      <span class="btn-text">Add to Cash</span><div class="spinner"></div>
+    </button>
+  </div>
+  <div class="history-section" id="history-section"></div>
+</div>
+
+<button class="config-toggle" style="right:100px;" onclick="window.location.href=window.location.pathname+'?v='+Date.now()">↻ update</button>
+<button class="config-toggle" onclick="openConfig()">⚙ setup</button>
+
+<div class="config-panel" id="config-panel">
+  <button class="config-close" onclick="closeConfig()">✕ close</button>
+  <h2>Setup</h2>
+  <p class="desc">Connect to your Excel file on OneDrive via Microsoft Graph API.</p>
+
+  <div class="divider"></div>
+
+  <h3>Microsoft Account</h3>
+  <div id="auth-section">
+    <button class="btn-ms-signin" id="btn-signin" onclick="login()">
+      <svg width="18" height="18" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+      Sign in with Microsoft
+    </button>
+    <button class="btn-ms-signout" id="btn-signout" onclick="logout()" style="display:none;">
+      Sign out (<span id="auth-user"></span>)
+    </button>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3>Azure App</h3>
+  <p class="desc" style="margin-bottom:14px;">Paste your Application (client) ID from Azure app registration.</p>
+  <div class="config-field">
+    <label>Client ID</label>
+    <input type="text" id="cfg-client-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+  </div>
+
+  <div class="divider"></div>
+
+  <h3>Excel File</h3>
+  <p class="desc" style="margin-bottom:14px;">Path to your Excel file on OneDrive, relative to root. E.g. Documents/Account.xlsx</p>
+  <div class="config-field">
+    <label>File path on OneDrive</label>
+    <input type="text" id="cfg-file-path" placeholder="Documents/Account.xlsx">
+  </div>
+  <div class="config-field">
+    <label>Cash table name</label>
+    <input type="text" id="cfg-cash-table" placeholder="CashTable">
+  </div>
+  <div class="config-field">
+    <label>Credit table name</label>
+    <input type="text" id="cfg-credit-table" placeholder="CreditTable">
+  </div>
+
+  <button class="config-save" onclick="saveConfig()">Save</button>
+
+  <div class="divider"></div>
+
+  <h3>Favorites</h3>
+  <p class="desc" style="margin-bottom:14px;">Recurring transactions. Tap edit to change cost or details.</p>
+  <div id="fav-manager"></div>
+
+  <div class="divider"></div>
+
+  <h3>Categories & Sub-categories</h3>
+  <p class="desc" style="margin-bottom:14px;">Changes save instantly. Update your Excel Cat tab too.</p>
+  <div class="cat-manager" id="cat-manager"></div>
+  <div class="add-cat-row">
+    <input type="text" id="new-cat-input" placeholder="New category name…">
+    <button class="btn-add-cat" onclick="addCategory()">+ Add</button>
+  </div>
+
+  <div class="divider"></div>
+  <p class="desc" style="font-size:10px;">All settings saved in localStorage on this device only. Transaction data only flows to Microsoft when you submit.</p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Data ─────────────────────────────────────────────────────────────────────
+
+const SHEETS = {
+  Cash: {
+    methods: ['Checking','Savings','CheckingCO','SavingsCO','SavingsF','SavingsFL','COne Savings','Optum','Fidelity','RothIRA','Cash','Venmo'],
+    methodToColumn: { 'Checking':'Checking','Savings':'Savings','CheckingCO':'CheckingCO','SavingsCO':'SavingsCO','SavingsF':'SavingsF','SavingsFL':'SavingsFL','COne Savings':'COne Savings','Optum':'Optum','Fidelity':'Fidelity','RothIRA':'RothIRA','Cash':'Cash','Venmo':'Venmo' }
+  },
+  Credit: {
+    methods: ['Discover','WF','Chase','Savor1','Venmo'],
+    methodToColumn: { 'Discover':'Discover','WF':'WF','Chase':'Chase','Savor1':'Savor1','Venmo':'Venmo' }
+  }
+};
+
+const CAT_SUB_DEFAULT = {
+  'Pay':[],'Health':[],'Home':['Rent','Move'],'Utilities':['Wifi','Gas','Electric','Others'],
+  'F&D':['Groceries','Out','Caffeine'],'Dr':['Alcohol','THC'],
+  'Need':['Skincare','Insurance','License','Visa','Phone','Goods','Workout'],
+  'Hair':['Haircut','Haircare'],'Eyes':['Lenses','Glasses'],
+  'Transport':['Maintenance','Parking','Car','Gas','Insurance','Ride','Registration'],
+  'Want':['Experience','Goods','Music','Gift','Service','Fashion','Shambhala'],
+  'Travel':['Flight','Stay'],'Fam':[]
+};
+
+const FAVORITES_DEFAULT = [
+  { label:'State Farm', sheet:'Credit', venue:'State Farm', activities:"Renter's insurance", method:'WF', category:'Need', sub:'Insurance', cost:13.09 },
+  { label:'Franz Fahrenheit', sheet:'Credit', venue:'Apple', activities:'Franz Fahrenheit (monthly)', method:'WF', category:'Want', sub:'Service', cost:1.08 },
+  { label:'iCloud+', sheet:'Credit', venue:'Apple', activities:'iCloud+', method:'WF', category:'Want', sub:'Service', cost:2.99 },
+  { label:'Spotify', sheet:'Credit', venue:'Spotify', activities:'Monthly sub', method:'Savor1', category:'Want', sub:'Music', cost:14.16 },
+  { label:'Haircut', sheet:'Credit', venue:'James Irving Grooming', activities:'Haircut', method:'WF', category:'Hair', sub:'Haircut', cost:72.00 },
+  { label:'Sencha', sheet:'Credit', venue:'Harney & Sons', activities:'Japanese Sencha (1lb Loose Leaf) (60-day sub)', method:'WF', category:'F&D', sub:'Caffeine', cost:43.79 },
+  { label:'Cocofloss', sheet:'Credit', venue:'Cocofloss', activities:'32-yard floss (3-month sub)', method:'WF', category:'Need', sub:'', cost:9.73 },
+  { label:'Vanicream', sheet:'Credit', venue:'LovelySkin', activities:'2x Vanicream (10-week sub)', method:'WF', category:'Need', sub:'Skincare', cost:32.71 },
+  { label:'Discover CB', sheet:'Credit', venue:'Discover', activities:'Cash back', method:'Discover', category:'', sub:'', cost:0 },
+  { label:'Savor1 CB', sheet:'Credit', venue:'Capital One', activities:'Cash back', method:'Savor1', category:'', sub:'', cost:0 },
+  { label:'WF CB', sheet:'Credit', venue:'Wells Fargo', activities:'Cash back', method:'WF', category:'', sub:'', cost:0 },
+  { label:'Chase CB', sheet:'Credit', venue:'Chase', activities:'Cash back', method:'Chase', category:'', sub:'', cost:0 },
+  { label:'Discover Pay', sheet:'Credit', venue:'Discover', activities:'Discover Payment', method:'Discover', category:'', sub:'', cost:0 },
+  { label:'Savor1 Pay', sheet:'Credit', venue:'Capital One', activities:'SavorOne Payment', method:'Savor1', category:'', sub:'', cost:0 },
+  { label:'WF Pay', sheet:'Credit', venue:'Wells Fargo', activities:'WF Payment', method:'WF', category:'', sub:'', cost:0 },
+  { label:'Chase Pay', sheet:'Credit', venue:'Chase', activities:'Chase Payment', method:'Chase', category:'', sub:'', cost:0 }
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+let catSub = JSON.parse(localStorage.getItem('cf_cat_sub') || 'null') || JSON.parse(JSON.stringify(CAT_SUB_DEFAULT));
+let favorites = JSON.parse(localStorage.getItem('cf_favorites') || 'null') || JSON.parse(JSON.stringify(FAVORITES_DEFAULT));
+let currentSheet = 'Cash';
+let history = JSON.parse(localStorage.getItem('cf_history') || '[]');
+let queue = JSON.parse(localStorage.getItem('cf_queue') || '[]');
+let activeFav = null;
+let columnCache = {};
+
+function saveCatSub() { localStorage.setItem('cf_cat_sub', JSON.stringify(catSub)); }
+function saveFavorites() { localStorage.setItem('cf_favorites', JSON.stringify(favorites)); }
+function saveQueue() { localStorage.setItem('cf_queue', JSON.stringify(queue)); renderPendingBadge(); }
+
+// ── MSAL / Auth ──────────────────────────────────────────────────────────────
+
+let msalInstance = null;
+let accessToken = null;
+
+function initMsal() {
+  const clientId = localStorage.getItem('cf_client_id');
+  if (!clientId) return;
+  const msalConfig = {
+    auth: {
+      clientId,
+      authority: 'https://login.microsoftonline.com/consumers',
+      redirectUri: window.location.origin + window.location.pathname
+    },
+    cache: { cacheLocation: 'localStorage' }
+  };
+  msalInstance = new msal.PublicClientApplication(msalConfig);
+
+  // Handle redirect response (comes back here after login)
+  msalInstance.handleRedirectPromise().then(res => {
+    if (res) {
+      accessToken = res.accessToken;
+      updateAuthUI(true, res.account.username);
+      showToast('Signed in', 'success');
+    } else {
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) silentLogin(accounts[0]);
+    }
+  }).catch(e => { console.error('Redirect error:', e); });
+}
+
+async function silentLogin(account) {
+  try {
+    const res = await msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite'], account });
+    accessToken = res.accessToken;
+    updateAuthUI(true, account.username);
+  } catch (e) { /* needs interactive */ }
+}
+
+async function login() {
+  const clientId = localStorage.getItem('cf_client_id');
+  if (!clientId) { showToast('Set Client ID in ⚙ setup first', 'error'); return; }
+  if (!msalInstance) initMsal();
+  if (!msalInstance) return;
+  msalInstance.loginRedirect({ scopes: ['Files.ReadWrite'] });
+}
+
+async function logout() {
+  if (!msalInstance) return;
+  msalInstance.logoutRedirect();
+}
+
+async function getToken() {
+  if (!msalInstance) { showToast('Set Client ID and sign in first', 'error'); return null; }
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length === 0) {
+    await login();
+    return accessToken;
+  }
+  try {
+    const res = await msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite'], account: accounts[0] });
+    accessToken = res.accessToken;
+    return accessToken;
+  } catch (e) {
+    // Silent failed, redirect to login
+    msalInstance.acquireTokenRedirect({ scopes: ['Files.ReadWrite'] });
+    return null;
+  }
+}
+
+function updateAuthUI(signedIn, username) {
+  const badge = document.getElementById('auth-badge');
+  const btnIn = document.getElementById('btn-signin');
+  const btnOut = document.getElementById('btn-signout');
+  const userEl = document.getElementById('auth-user');
+  if (signedIn) {
+    badge.className = 'auth-badge signed-in';
+    badge.textContent = '✓ signed in';
+    btnIn.style.display = 'none';
+    btnOut.style.display = '';
+    if (userEl && username) userEl.textContent = username;
+  } else {
+    badge.className = 'auth-badge signed-out';
+    badge.textContent = 'sign in';
+    btnIn.style.display = '';
+    btnOut.style.display = 'none';
+  }
+}
+
+function handleAuthClick() {
+  if (accessToken) openConfig();
+  else login();
+}
+
+// ── Graph API ────────────────────────────────────────────────────────────────
+
+async function getTableColumns(tableName) {
+  if (columnCache[tableName]) return columnCache[tableName];
+  const token = await getToken();
+  if (!token) return null;
+  const filePath = localStorage.getItem('cf_file_path');
+  if (!filePath) { showToast('Set file path in ⚙ setup', 'error'); return null; }
 
   const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${filePath}:/workbook/tables/${tableName}/columns`;
   const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
