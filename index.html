@@ -88,9 +88,16 @@
   input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
   input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
   textarea { resize: none; height: 72px; line-height: 1.5; }
-  .cost-wrap { position: relative; }
-  .cost-wrap::before { content: '$'; position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-family: var(--mono); font-size: 14px; pointer-events: none; }
-  .cost-wrap input { padding-left: 26px; }
+  .cost-wrap { position: relative; display: flex; align-items: center; gap: 0; }
+  .cost-sign {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 2;
+    width: 24px; height: 24px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 14px; font-weight: 600; cursor: pointer;
+    background: var(--accent-glow); border: 1px solid var(--accent-dim); color: var(--success);
+    user-select: none; -webkit-user-select: none;
+  }
+  .cost-sign.negative { color: var(--error); }
+  .cost-wrap input { padding-left: 42px; }
   .account-preview {
     background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
     padding: 10px 14px; font-family: var(--mono); font-size: 12px; color: var(--text-muted);
@@ -212,8 +219,8 @@
   </div>
 
   <div class="tabs">
-    <button class="tab active" data-sheet="Cash" onclick="switchSheet('Cash')">Cash</button>
-    <button class="tab" data-sheet="Credit" onclick="switchSheet('Credit')">Credit</button>
+    <button class="tab active" data-sheet="Credit" onclick="switchSheet('Credit')">Credit</button>
+    <button class="tab" data-sheet="Cash" onclick="switchSheet('Cash')">Cash</button>
   </div>
 
   <div class="fav-section" id="fav-section" style="display:none;">
@@ -224,7 +231,7 @@
   <div class="form-body" id="form-body">
     <div class="field-row">
       <div class="field"><label>Date <span class="required">*</span></label><input type="date" id="f-date"></div>
-      <div class="field"><label>Cost <span class="required">*</span></label><div class="cost-wrap"><input type="number" id="f-cost" step="0.01" min="0" placeholder="0.00"></div></div>
+      <div class="field"><label>Cost <span class="required">*</span></label><div class="cost-wrap"><span class="cost-sign" id="cost-sign" onclick="toggleCostSign()">+</span><input type="number" id="f-cost" inputmode="decimal" step="0.01" placeholder="0.00"></div></div>
     </div>
     <div class="field"><label>Venue</label><input type="text" id="f-venue" placeholder="Where / who" autocapitalize="words"></div>
     <div class="field"><label>Activities</label><input type="text" id="f-activities" placeholder="What for"></div>
@@ -262,13 +269,14 @@
   </div>
 
   <div class="submit-wrap" style="margin-top:20px;">
-    <button class="btn-submit" id="btn-submit" data-sheet="Cash" onclick="submitTransaction()">
-      <span class="btn-text">Add to Cash</span><div class="spinner"></div>
+    <button class="btn-submit" id="btn-submit" data-sheet="Credit" onclick="submitTransaction()">
+      <span class="btn-text">Add to Credit</span><div class="spinner"></div>
     </button>
   </div>
   <div class="history-section" id="history-section"></div>
 </div>
 
+<button class="config-toggle" style="right:185px;" onclick="resetForm()">✕ reset</button>
 <button class="config-toggle" style="right:100px;" onclick="window.location.href=window.location.pathname+'?v='+Date.now()">↻ update</button>
 <button class="config-toggle" onclick="openConfig()">⚙ setup</button>
 
@@ -564,10 +572,19 @@ window.onload = () => {
   document.getElementById('today-label').textContent =
     today.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
   initMsal();
-  switchSheet('Cash');
+  switchSheet('Credit');
   renderHistory();
   renderPendingBadge();
 };
+
+let costNegative = false;
+
+function toggleCostSign() {
+  costNegative = !costNegative;
+  const el = document.getElementById('cost-sign');
+  el.textContent = costNegative ? '−' : '+';
+  el.classList.toggle('negative', costNegative);
+}
 
 function toggleMore() {
   document.getElementById('more-toggle').classList.toggle('open');
@@ -620,7 +637,10 @@ function applyFav(idx) {
   if (chip) chip.classList.add('active');
   document.getElementById('f-venue').value = f.venue || '';
   document.getElementById('f-activities').value = f.activities || '';
-  document.getElementById('f-cost').value = f.cost || '';
+  document.getElementById('f-cost').value = f.cost ? Math.abs(f.cost) : '';
+  costNegative = f.cost < 0;
+  document.getElementById('cost-sign').textContent = costNegative ? '−' : '+';
+  document.getElementById('cost-sign').classList.toggle('negative', costNegative);
   const methodSel = document.getElementById('f-method');
   if (SHEETS[currentSheet].methods.includes(f.method)) { methodSel.value = f.method; }
   else { methodSel.value = '__other__'; document.getElementById('f-method-custom').value = f.method || ''; document.getElementById('f-method-custom').classList.add('visible'); }
@@ -708,7 +728,8 @@ window.addEventListener('online', () => { if (queue.length > 0) { showToast('Bac
 
 async function submitTransaction() {
   const date = document.getElementById('f-date').value;
-  const cost = parseFloat(document.getElementById('f-cost').value);
+  const rawCost = parseFloat(document.getElementById('f-cost').value);
+  const cost = costNegative ? -Math.abs(rawCost) : Math.abs(rawCost);
   const venue = document.getElementById('f-venue').value.trim();
   const activities = document.getElementById('f-activities').value.trim();
   const mSel = document.getElementById('f-method').value;
@@ -722,7 +743,7 @@ async function submitTransaction() {
   const remarks = document.getElementById('f-remarks').value.trim();
 
   if (!date) return showToast('Date is required', 'error');
-  if (isNaN(cost) || cost < 0) return showToast('Enter a valid cost', 'error');
+  if (isNaN(rawCost)) return showToast('Enter a valid cost', 'error');
   if (!method) return showToast('Enter a method', 'error');
 
   const payload = { date, venue, activities, method, category, sub, sub2, sub3, cost, remarks };
@@ -760,6 +781,9 @@ function addHistory(venue, cost, category) {
 function resetForm() {
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('f-date').value = today;
+  costNegative = false;
+  document.getElementById('cost-sign').textContent = '+';
+  document.getElementById('cost-sign').classList.remove('negative');
   ['f-cost','f-venue','f-activities','f-method-custom','f-category-custom','f-sub-custom','f-sub2','f-sub3','f-remarks'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('f-method').value = '';
   document.getElementById('f-category').value = '';
