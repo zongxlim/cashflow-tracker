@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0a0f">
-<title>Cashflow</title>
+<title>Account</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="msal.js"></script>
@@ -56,6 +56,7 @@
   }
   .tab.active[data-sheet="Cash"] { background: rgba(52,211,153,0.1); border-color: var(--cash-color); color: var(--cash-color); }
   .tab.active[data-sheet="Credit"] { background: rgba(124,106,247,0.1); border-color: var(--credit-color); color: var(--credit-color); }
+  .tab.active[data-sheet="Balances"] { background: rgba(251,191,36,0.1); border-color: #fbbf24; color: #fbbf24; }
 
   .fav-section { padding: 0 24px 16px; }
   .fav-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px; }
@@ -151,7 +152,8 @@
   .bal-value.negative { color: var(--error); }
   .bal-value.zero { color: var(--text-dim); }
   .bal-loading { color: var(--text-dim); font-family: var(--mono); font-size: 11px; }
-  .bal-expand { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .bal-expand { display: none; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .bal-expand.open { display: flex; }
   .bal-expand .bal-card { flex: 1; min-width: calc(50% - 4px); }
 
   .config-toggle {
@@ -223,7 +225,7 @@
 <div class="app">
   <div class="header">
     <div class="header-left">
-      <h1>Cashflow</h1>
+      <h1>Account</h1>
       <div class="subtitle" id="today-label">— — —</div>
     </div>
     <div class="header-right">
@@ -237,6 +239,7 @@
   <div class="tabs">
     <button class="tab active" data-sheet="Credit" onclick="switchSheet('Credit')">Credit</button>
     <button class="tab" data-sheet="Cash" onclick="switchSheet('Cash')">Cash</button>
+    <button class="tab" data-sheet="Balances" onclick="switchSheet('Balances')">Balances</button>
   </div>
 
   <!-- Balance Dashboard -->
@@ -246,9 +249,11 @@
     <div class="more-toggle" id="bal-more-toggle" onclick="toggleBalMore()" style="margin-top:8px;">
       <span class="arrow">▶</span> More accounts
     </div>
-    <div class="more-fields bal-expand" id="balance-expand"></div>
+    <div class="bal-expand" id="balance-expand"></div>
   </div>
 
+  <!-- Form -->
+  <div id="form-wrapper">
   <div class="fav-section" id="fav-section" style="display:none;">
     <div class="fav-label">Quick add</div>
     <div class="fav-chips" id="fav-chips"></div>
@@ -300,6 +305,7 @@
     </button>
   </div>
   <div class="history-section" id="history-section"></div>
+  </div><!-- /form-wrapper -->
 </div>
 
 <button class="config-toggle" style="right:185px;" onclick="resetForm()">✕ reset</button>
@@ -389,13 +395,13 @@ const SHEETS = {
 };
 
 const CAT_SUB_DEFAULT = {
-  'Pay':[],'Health':[],'Home':['Rent','Move'],'Utilities':['Wifi','Gas','Electric','Others'],
-  'F&D':['Groceries','Out','Caffeine'],'Dr':['Alcohol','THC'],
-  'Need':['Skincare','Insurance','License','Visa','Phone','Goods','Workout'],
-  'Hair':['Haircut','Haircare'],'Eyes':['Lenses','Glasses'],
+  'F&D':['Groceries','Out','Caffeine'],
   'Transport':['Maintenance','Parking','Car','Gas','Insurance','Ride','Registration'],
   'Want':['Experience','Goods','Music','Gift','Service','Fashion','Shambhala'],
-  'Travel':['Flight','Stay'],'Fam':[]
+  'Need':['Skincare','Insurance','License','Visa','Phone','Goods','Workout'],
+  'Travel':['Flight','Stay'],
+  'Pay':[],'Health':[],'Home':['Rent','Move'],'Utilities':['Wifi','Gas','Electric','Others'],
+  'Dr':['Alcohol','THC'],'Hair':['Haircut','Haircare'],'Eyes':['Lenses','Glasses'],'Fam':[]
 };
 
 const FAVORITES_DEFAULT = [
@@ -466,7 +472,6 @@ function initMsal() {
       accessToken = res.accessToken;
       updateAuthUI(true, res.account.username);
       showToast('Signed in', 'success');
-      setTimeout(loadBalances, 500);
     } else {
       const accounts = msalInstance.getAllAccounts();
       if (accounts.length > 0) silentLogin(accounts[0]);
@@ -479,7 +484,6 @@ async function silentLogin(account) {
     const res = await msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite'], account });
     accessToken = res.accessToken;
     updateAuthUI(true, account.username);
-    setTimeout(loadBalances, 500);
   } catch (e) { /* needs interactive */ }
 }
 
@@ -635,8 +639,20 @@ function toggleMore() {
 // ── Sheet switching ────────────────────────────────────────────────────────────
 
 function switchSheet(sheet) {
-  currentSheet = sheet; activeFav = null;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.sheet === sheet));
+  const formWrapper = document.getElementById('form-wrapper');
+  const balSection = document.getElementById('balance-section');
+
+  if (sheet === 'Balances') {
+    formWrapper.style.display = 'none';
+    balSection.style.display = '';
+    loadBalances();
+    return;
+  }
+
+  formWrapper.style.display = '';
+  balSection.style.display = 'none';
+  currentSheet = sheet; activeFav = null;
   const btn = document.getElementById('btn-submit');
   btn.dataset.sheet = sheet;
   btn.querySelector('.btn-text').textContent = `Add to ${sheet}`;
