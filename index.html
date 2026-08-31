@@ -61,6 +61,7 @@
   .fav-section { padding: 0 24px 16px; }
   .fav-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px; }
   .fav-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .fav-chips-wrap { padding-top: 8px; }
   .fav-chip {
     background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
     padding: 6px 14px; font-family: var(--mono); font-size: 11px; color: var(--text-muted);
@@ -255,8 +256,10 @@
   <!-- Form -->
   <div id="form-wrapper">
   <div class="fav-section" id="fav-section" style="display:none;">
-    <div class="fav-label">Quick add</div>
-    <div class="fav-chips" id="fav-chips"></div>
+    <div class="more-toggle" id="fav-toggle" onclick="toggleFavs()"><span class="arrow">▶</span> Quick add</div>
+    <div class="fav-chips-wrap" id="fav-chips-wrap" style="display:none;">
+      <div class="fav-chips" id="fav-chips"></div>
+    </div>
   </div>
 
   <div class="form-body" id="form-body">
@@ -437,7 +440,6 @@ let balanceCache = null;
 let balanceTs = 0;
 
 const MAIN_BALANCES = [
-  { sheet: 'Cash', col: 'Venmo' },
   { sheet: 'Credit', col: 'Discover' },
   { sheet: 'Credit', col: 'WF' },
   { sheet: 'Credit', col: 'Chase' },
@@ -634,6 +636,13 @@ function toggleCostSign() {
 function toggleMore() {
   document.getElementById('more-toggle').classList.toggle('open');
   document.getElementById('more-fields').classList.toggle('open');
+}
+
+function toggleFavs() {
+  const toggle = document.getElementById('fav-toggle');
+  const wrap = document.getElementById('fav-chips-wrap');
+  toggle.classList.toggle('open');
+  wrap.style.display = toggle.classList.contains('open') ? '' : 'none';
 }
 
 // ── Sheet switching ────────────────────────────────────────────────────────────
@@ -1061,12 +1070,17 @@ function renderBalances() {
   const mainEl = document.getElementById('balance-main');
   const expandEl = document.getElementById('balance-expand');
 
-  // Render main balances
-  mainEl.innerHTML = MAIN_BALANCES.map(b => {
+  // Render main balances + total
+  let total = 0;
+  let mainHtml = MAIN_BALANCES.map(b => {
     const row = balanceCache[b.sheet];
     const val = row ? row[b.col] : null;
+    const num = typeof val === 'number' ? val : parseFloat(val);
+    if (!isNaN(num)) total += num;
     return renderBalCard(b.col, val);
   }).join('');
+  mainHtml += renderBalCard('Total', total);
+  mainEl.innerHTML = mainHtml;
 
   // Render expanded (all other columns that are numeric)
   const otherCards = [];
@@ -1087,9 +1101,9 @@ function renderBalances() {
 
 function renderBalCard(label, val) {
   const num = typeof val === 'number' ? val : parseFloat(val);
-  const display = isNaN(num) ? '—' : '$' + Math.abs(num).toFixed(2);
+  const display = isNaN(num) ? '—' : '$' + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const cls = isNaN(num) ? 'zero' : (num > 0 ? 'positive' : (num < 0 ? 'negative' : 'zero'));
-  const sign = isNaN(num) ? '' : (num < 0 ? '−' : (num > 0 ? '' : ''));
+  const sign = isNaN(num) ? '' : (num < 0 ? '−' : '');
   return `<div class="bal-card"><div class="bal-label">${escHtml(label)}</div><div class="bal-value ${cls}">${sign}${display}</div></div>`;
 }
 
