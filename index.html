@@ -237,7 +237,7 @@
     <div class="field"><label>Activities</label><input type="text" id="f-activities" placeholder="What for"></div>
     <div class="field-row">
       <div class="field">
-        <label>Method <span class="required">*</span></label>
+        <label>Method</label>
         <select id="f-method" onchange="onMethodChange()"><option value="">— select —</option></select>
         <input type="text" id="f-method-custom" class="custom-input" placeholder="Type method…">
       </div>
@@ -353,12 +353,12 @@
 
 const SHEETS = {
   Cash: {
-    methods: ['Checking','Savings','CheckingCO','SavingsCO','SavingsF','SavingsFL','COne Savings','Optum','Fidelity','RothIRA','Cash','Venmo'],
-    methodToColumn: { 'Checking':'Checking','Savings':'Savings','CheckingCO':'CheckingCO','SavingsCO':'SavingsCO','SavingsF':'SavingsF','SavingsFL':'SavingsFL','COne Savings':'COne Savings','Optum':'Optum','Fidelity':'Fidelity','RothIRA':'RothIRA','Cash':'Cash','Venmo':'Venmo' }
+    methods: ['Checking','SavingsCO','Cash','Venmo','Savings','CheckingCO','SavingsF','COne Savings','Optum','Fidelity','PB (MYR)'],
+    methodToColumn: { 'Checking':'Checking','Savings':'Savings','CheckingCO':'CheckingCO','SavingsCO':'SavingsCO','SavingsF':'SavingsF','COne Savings':'COne Savings','Optum':'Optum','Fidelity':'Fidelity','PB (MYR)':'PB (MYR)','Cash':'Cash','Venmo':'Venmo' }
   },
   Credit: {
-    methods: ['Discover','WF','Chase','Savor1','Venmo'],
-    methodToColumn: { 'Discover':'Discover','WF':'WF','Chase':'Chase','Savor1':'Savor1','Venmo':'Venmo' }
+    methods: ['Discover','WF','Chase','Savor1'],
+    methodToColumn: { 'Discover':'Discover','WF':'WF','Chase':'Chase','Savor1':'Savor1' }
   }
 };
 
@@ -373,22 +373,23 @@ const CAT_SUB_DEFAULT = {
 };
 
 const FAVORITES_DEFAULT = [
-  { label:'State Farm', sheet:'Credit', venue:'State Farm', activities:"Renter's insurance", method:'WF', category:'Need', sub:'Insurance', cost:13.09 },
-  { label:'Franz Fahrenheit', sheet:'Credit', venue:'Apple', activities:'Franz Fahrenheit (monthly)', method:'WF', category:'Want', sub:'Service', cost:1.08 },
-  { label:'iCloud+', sheet:'Credit', venue:'Apple', activities:'iCloud+', method:'WF', category:'Want', sub:'Service', cost:2.99 },
-  { label:'Spotify', sheet:'Credit', venue:'Spotify', activities:'Monthly sub', method:'Savor1', category:'Want', sub:'Music', cost:14.16 },
-  { label:'Haircut', sheet:'Credit', venue:'James Irving Grooming', activities:'Haircut', method:'WF', category:'Hair', sub:'Haircut', cost:72.00 },
-  { label:'Sencha', sheet:'Credit', venue:'Harney & Sons', activities:'Japanese Sencha (1lb Loose Leaf) (60-day sub)', method:'WF', category:'F&D', sub:'Caffeine', cost:43.79 },
-  { label:'Cocofloss', sheet:'Credit', venue:'Cocofloss', activities:'32-yard floss (3-month sub)', method:'WF', category:'Need', sub:'', cost:9.73 },
-  { label:'Vanicream', sheet:'Credit', venue:'LovelySkin', activities:'2x Vanicream (10-week sub)', method:'WF', category:'Need', sub:'Skincare', cost:32.71 },
-  { label:'Discover CB', sheet:'Credit', venue:'Discover', activities:'Cash back', method:'Discover', category:'', sub:'', cost:0 },
-  { label:'Savor1 CB', sheet:'Credit', venue:'Capital One', activities:'Cash back', method:'Savor1', category:'', sub:'', cost:0 },
-  { label:'WF CB', sheet:'Credit', venue:'Wells Fargo', activities:'Cash back', method:'WF', category:'', sub:'', cost:0 },
-  { label:'Chase CB', sheet:'Credit', venue:'Chase', activities:'Cash back', method:'Chase', category:'', sub:'', cost:0 },
-  { label:'Discover Pay', sheet:'Credit', venue:'Discover', activities:'Discover Payment', method:'Discover', category:'', sub:'', cost:0 },
-  { label:'Savor1 Pay', sheet:'Credit', venue:'Capital One', activities:'SavorOne Payment', method:'Savor1', category:'', sub:'', cost:0 },
-  { label:'WF Pay', sheet:'Credit', venue:'Wells Fargo', activities:'WF Payment', method:'WF', category:'', sub:'', cost:0 },
-  { label:'Chase Pay', sheet:'Credit', venue:'Chase', activities:'Chase Payment', method:'Chase', category:'', sub:'', cost:0 }
+  { label:'iCloud+', sheet:'Credit', venue:'Apple', activities:'iCloud+', method:'WF', category:'Want', sub:'Service', cost:2.99, remarks:'11th' },
+  { label:'Claude Pro', sheet:'Credit', venue:'Anthropic', activities:'Claude Pro', method:'WF', category:'Want', sub:'Service', cost:20.00, remarks:'13th' },
+  { label:'State Farm', sheet:'Credit', venue:'State Farm', activities:"Renter's insurance", method:'WF', category:'Need', sub:'Insurance', cost:13.09, remarks:'15th' },
+  { label:'Franz Fahrenheit', sheet:'Credit', venue:'Apple', activities:'Franz Fahrenheit (monthly)', method:'WF', category:'Want', sub:'Service', cost:1.08, remarks:'17th' },
+  { label:'Spotify', sheet:'Credit', venue:'Spotify', activities:'Monthly sub', method:'Savor1', category:'Want', sub:'Music', cost:14.16, remarks:'25th' },
+  { label:'Haircut', sheet:'Credit', venue:'James Irving Grooming', activities:'Haircut', method:'WF', category:'Hair', sub:'Haircut', cost:72.00, remarks:'' },
+  { label:'Sencha', sheet:'Credit', venue:'Harney & Sons', activities:'Japanese Sencha (1lb Loose Leaf) (60-day sub)', method:'WF', category:'F&D', sub:'Caffeine', cost:43.79, remarks:'' },
+  { label:'Cocofloss', sheet:'Credit', venue:'Cocofloss', activities:'32-yard floss (3-month sub)', method:'WF', category:'Need', sub:'', cost:9.73, remarks:'' },
+  { label:'Vanicream', sheet:'Credit', venue:'LovelySkin', activities:'2x Vanicream (10-week sub)', method:'WF', category:'Need', sub:'Skincare', cost:32.71, remarks:'' },
+  { label:'Discover CB', sheet:'Credit', venue:'Discover', activities:'Cash back', method:'Discover', category:'', sub:'', cost:0, remarks:'' },
+  { label:'Savor1 CB', sheet:'Credit', venue:'Capital One', activities:'Cash back', method:'Savor1', category:'', sub:'', cost:0, remarks:'' },
+  { label:'WF CB', sheet:'Credit', venue:'Wells Fargo', activities:'Cash back', method:'WF', category:'', sub:'', cost:0, remarks:'' },
+  { label:'Chase CB', sheet:'Credit', venue:'Chase', activities:'Cash back', method:'Chase', category:'', sub:'', cost:0, remarks:'' },
+  { label:'Discover Pay', sheet:'Credit', venue:'Discover', activities:'Discover Payment', method:'Discover', category:'', sub:'', cost:0, remarks:'' },
+  { label:'Savor1 Pay', sheet:'Credit', venue:'Capital One', activities:'SavorOne Payment', method:'Savor1', category:'', sub:'', cost:0, remarks:'' },
+  { label:'WF Pay', sheet:'Credit', venue:'Wells Fargo', activities:'WF Payment', method:'WF', category:'', sub:'', cost:0, remarks:'' },
+  { label:'Chase Pay', sheet:'Credit', venue:'Chase', activities:'Chase Payment', method:'Chase', category:'', sub:'', cost:0, remarks:'' }
 ];
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -538,11 +539,13 @@ async function addRowToExcel(sheetKey, payload) {
   if (!cols) return false;
 
   // Map payload fields to column names (case-insensitive)
+  const uploaded = new Date().toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true });
   const fieldMap = {};
   const payloadMap = {
     'date': payload.date, 'venue': payload.venue, 'activities': payload.activities,
     'method': payload.method, 'category': payload.category, 'sub': payload.sub,
-    'sub2': payload.sub2, 'sub3': payload.sub3, 'cost': payload.cost, 'remarks': payload.remarks
+    'sub2': payload.sub2, 'sub3': payload.sub3, 'cost': payload.cost, 'remarks': payload.remarks,
+    'inputted': payload.inputted, 'uploaded': uploaded
   };
   Object.entries(payloadMap).forEach(([k, v]) => { fieldMap[k.toLowerCase()] = v; });
 
@@ -637,6 +640,7 @@ function applyFav(idx) {
   if (chip) chip.classList.add('active');
   document.getElementById('f-venue').value = f.venue || '';
   document.getElementById('f-activities').value = f.activities || '';
+  document.getElementById('f-remarks').value = f.remarks || '';
   document.getElementById('f-cost').value = f.cost ? Math.abs(f.cost) : '';
   costNegative = f.cost < 0;
   document.getElementById('cost-sign').textContent = costNegative ? '−' : '+';
@@ -744,9 +748,10 @@ async function submitTransaction() {
 
   if (!date) return showToast('Date is required', 'error');
   if (isNaN(rawCost)) return showToast('Enter a valid cost', 'error');
-  if (!method) return showToast('Enter a method', 'error');
 
-  const payload = { date, venue, activities, method, category, sub, sub2, sub3, cost, remarks };
+  const now = new Date();
+  const inputted = now.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true });
+  const payload = { date, venue, activities, method, category, sub, sub2, sub3, cost, remarks, inputted };
   const btn = document.getElementById('btn-submit');
   btn.disabled = true; btn.classList.add('loading');
 
