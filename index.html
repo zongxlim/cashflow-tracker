@@ -462,8 +462,8 @@ async function getToken() {
   if (!msalInstance) { showToast('Set Client ID and sign in first', 'error'); return null; }
   const accounts = msalInstance.getAllAccounts();
   if (accounts.length === 0) {
-    await login();
-    return accessToken;
+    login();
+    return null; // redirect will navigate away
   }
   try {
     const res = await msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite'], account: accounts[0] });
@@ -472,7 +472,7 @@ async function getToken() {
   } catch (e) {
     // Silent failed, redirect to login
     msalInstance.acquireTokenRedirect({ scopes: ['Files.ReadWrite'] });
-    return null;
+    return null; // redirect will navigate away
   }
 }
 
@@ -762,16 +762,24 @@ async function submitTransaction() {
     resetForm(); btn.disabled = false; btn.classList.remove('loading'); return;
   }
 
+  // If not signed in, queue first then trigger login (redirect navigates away)
+  if (!msalInstance || msalInstance.getAllAccounts().length === 0) {
+    queue.push({ sheet: currentSheet, payload }); saveQueue();
+    addHistory(venue, cost, category);
+    showToast('Queued — redirecting to sign in', 'success');
+    login();
+    return;
+  }
+
   const ok = await addRowToExcel(currentSheet, payload);
   if (ok) {
     addHistory(venue, cost, category);
     showToast(`✓ Added to ${currentSheet}`, 'success');
     resetForm();
-  } else if (!accessToken) {
-    // Auth issue — queue it
+  } else {
     queue.push({ sheet: currentSheet, payload }); saveQueue();
     addHistory(venue, cost, category);
-    showToast('Queued — sign in to sync', 'success');
+    showToast('Queued — will retry on next submit or sync', 'success');
     resetForm();
   }
   btn.disabled = false; btn.classList.remove('loading');
