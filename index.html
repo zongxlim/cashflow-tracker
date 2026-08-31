@@ -138,6 +138,22 @@
   .toast.success { border-color: var(--success); color: var(--success); }
   .toast.error { border-color: var(--error); color: var(--error); }
 
+  /* Balance Dashboard */
+  .balance-section { padding: 0 24px 20px; }
+  .balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .bal-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; display: flex; flex-direction: column; gap: 2px;
+  }
+  .bal-label { font-family: var(--mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
+  .bal-value { font-family: var(--mono); font-size: 16px; font-weight: 500; }
+  .bal-value.positive { color: var(--success); }
+  .bal-value.negative { color: var(--error); }
+  .bal-value.zero { color: var(--text-dim); }
+  .bal-loading { color: var(--text-dim); font-family: var(--mono); font-size: 11px; }
+  .bal-expand { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .bal-expand .bal-card { flex: 1; min-width: calc(50% - 4px); }
+
   .config-toggle {
     position: fixed; top: 16px; right: 20px; z-index: 50; background: var(--surface);
     border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
@@ -221,6 +237,16 @@
   <div class="tabs">
     <button class="tab active" data-sheet="Credit" onclick="switchSheet('Credit')">Credit</button>
     <button class="tab" data-sheet="Cash" onclick="switchSheet('Cash')">Cash</button>
+  </div>
+
+  <!-- Balance Dashboard -->
+  <div class="balance-section" id="balance-section" style="display:none;">
+    <div class="fav-label">Balances <span id="bal-refresh" onclick="loadBalances()" style="cursor:pointer;color:var(--accent);margin-left:8px;">↻</span></div>
+    <div class="balance-grid" id="balance-main"></div>
+    <div class="more-toggle" id="bal-more-toggle" onclick="toggleBalMore()" style="margin-top:8px;">
+      <span class="arrow">▶</span> More accounts
+    </div>
+    <div class="more-fields bal-expand" id="balance-expand"></div>
   </div>
 
   <div class="fav-section" id="fav-section" style="display:none;">
@@ -386,10 +412,10 @@ const FAVORITES_DEFAULT = [
   { label:'Savor1 CB', sheet:'Credit', venue:'Capital One', activities:'Cash back', method:'Savor1', category:'', sub:'', cost:0, remarks:'' },
   { label:'WF CB', sheet:'Credit', venue:'Wells Fargo', activities:'Cash back', method:'WF', category:'', sub:'', cost:0, remarks:'' },
   { label:'Chase CB', sheet:'Credit', venue:'Chase', activities:'Cash back', method:'Chase', category:'', sub:'', cost:0, remarks:'' },
-  { label:'Discover Pay', sheet:'Credit', venue:'Discover', activities:'Discover Payment', method:'Discover', category:'', sub:'', cost:0, remarks:'' },
-  { label:'Savor1 Pay', sheet:'Credit', venue:'Capital One', activities:'SavorOne Payment', method:'Savor1', category:'', sub:'', cost:0, remarks:'' },
-  { label:'WF Pay', sheet:'Credit', venue:'Wells Fargo', activities:'WF Payment', method:'WF', category:'', sub:'', cost:0, remarks:'' },
-  { label:'Chase Pay', sheet:'Credit', venue:'Chase', activities:'Chase Payment', method:'Chase', category:'', sub:'', cost:0, remarks:'' }
+  { label:'Discover Pay', sheet:'Credit', venue:'Discover', activities:'Discover Payment', method:'Discover', category:'', sub:'', cost:0, remarks:'', autoFillCol:'Discover', linked:{ sheet:'Cash', venue:'Discover', activities:'Discover Payment', method:'Checking', category:'Credit', sub:'' } },
+  { label:'Savor1 Pay', sheet:'Credit', venue:'Capital One', activities:'SavorOne Payment', method:'Savor1', category:'', sub:'', cost:0, remarks:'', autoFillCol:'Savor1', linked:{ sheet:'Cash', venue:'Capital One', activities:'SavorOne Payment', method:'Checking', category:'Credit', sub:'' } },
+  { label:'WF Pay', sheet:'Credit', venue:'Wells Fargo', activities:'WF Payment', method:'WF', category:'', sub:'', cost:0, remarks:'', autoFillCol:'WF', linked:{ sheet:'Cash', venue:'Wells Fargo', activities:'WF Payment', method:'Checking', category:'Credit', sub:'' } },
+  { label:'Chase Pay', sheet:'Credit', venue:'Chase', activities:'Chase Payment', method:'Chase', category:'', sub:'', cost:0, remarks:'', autoFillCol:'Chase', linked:{ sheet:'Cash', venue:'Chase', activities:'Chase Payment', method:'Checking', category:'Credit', sub:'' } }
 ];
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -401,6 +427,16 @@ let history = JSON.parse(localStorage.getItem('cf_history') || '[]');
 let queue = JSON.parse(localStorage.getItem('cf_queue') || '[]');
 let activeFav = null;
 let columnCache = {};
+let balanceCache = null;
+let balanceTs = 0;
+
+const MAIN_BALANCES = [
+  { sheet: 'Cash', col: 'Venmo' },
+  { sheet: 'Credit', col: 'Discover' },
+  { sheet: 'Credit', col: 'WF' },
+  { sheet: 'Credit', col: 'Chase' },
+  { sheet: 'Credit', col: 'Savor1' }
+];
 
 function saveCatSub() { localStorage.setItem('cf_cat_sub', JSON.stringify(catSub)); }
 function saveFavorites() { localStorage.setItem('cf_favorites', JSON.stringify(favorites)); }
@@ -430,6 +466,7 @@ function initMsal() {
       accessToken = res.accessToken;
       updateAuthUI(true, res.account.username);
       showToast('Signed in', 'success');
+      setTimeout(loadBalances, 500);
     } else {
       const accounts = msalInstance.getAllAccounts();
       if (accounts.length > 0) silentLogin(accounts[0]);
@@ -442,6 +479,7 @@ async function silentLogin(account) {
     const res = await msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite'], account });
     accessToken = res.accessToken;
     updateAuthUI(true, account.username);
+    setTimeout(loadBalances, 500);
   } catch (e) { /* needs interactive */ }
 }
 
@@ -641,8 +679,22 @@ function applyFav(idx) {
   document.getElementById('f-venue').value = f.venue || '';
   document.getElementById('f-activities').value = f.activities || '';
   document.getElementById('f-remarks').value = f.remarks || '';
-  document.getElementById('f-cost').value = f.cost ? Math.abs(f.cost) : '';
-  costNegative = f.cost < 0;
+  // Auto-fill cost from Excel balance for Pay favorites
+  if (f.autoFillCol) {
+    document.getElementById('f-cost').value = '';
+    costNegative = true;
+    document.getElementById('cost-sign').textContent = '\u2212';
+    document.getElementById('cost-sign').classList.add('negative');
+    getColumnBalance('Credit', f.autoFillCol).then(val => {
+      if (val !== null && val !== undefined) {
+        document.getElementById('f-cost').value = Math.abs(typeof val === 'number' ? val : parseFloat(val)).toFixed(2);
+      }
+      document.getElementById('f-cost').focus();
+    });
+  } else {
+    document.getElementById('f-cost').value = f.cost ? Math.abs(f.cost) : '';
+    costNegative = f.cost < 0;
+  }
   document.getElementById('cost-sign').textContent = costNegative ? '−' : '+';
   document.getElementById('cost-sign').classList.toggle('negative', costNegative);
   const methodSel = document.getElementById('f-method');
@@ -660,7 +712,7 @@ function applyFav(idx) {
     if (subs.includes(f.sub)) { subSel.value = f.sub; }
     else { subSel.value = '__other__'; document.getElementById('f-sub-custom').value = f.sub; document.getElementById('f-sub-custom').classList.add('visible'); }
   }
-  if (!f.cost) document.getElementById('f-cost').focus();
+  if (!f.cost && !f.autoFillCol) document.getElementById('f-cost').focus();
 }
 
 // ── Method / Category / Sub ──────────────────────────────────────────────────
@@ -756,7 +808,13 @@ async function submitTransaction() {
   btn.disabled = true; btn.classList.add('loading');
 
   if (!navigator.onLine) {
-    queue.push({ sheet: currentSheet, payload }); saveQueue();
+    queue.push({ sheet: currentSheet, payload }); 
+    const offlineFav = activeFav !== null ? favorites[activeFav] : null;
+    if (offlineFav && offlineFav.linked) {
+      const linkedPayload = { date, venue: offlineFav.linked.venue, activities: offlineFav.linked.activities, method: offlineFav.linked.method, category: offlineFav.linked.category, sub: offlineFav.linked.sub, sub2: '', sub3: '', cost: Math.abs(cost), remarks, inputted };
+      queue.push({ sheet: offlineFav.linked.sheet, payload: linkedPayload });
+    }
+    saveQueue();
     addHistory(venue, cost, category);
     showToast('Queued offline — will sync later', 'success');
     resetForm(); btn.disabled = false; btn.classList.remove('loading'); return;
@@ -764,7 +822,13 @@ async function submitTransaction() {
 
   // If not signed in, queue first then trigger login (redirect navigates away)
   if (!msalInstance || msalInstance.getAllAccounts().length === 0) {
-    queue.push({ sheet: currentSheet, payload }); saveQueue();
+    queue.push({ sheet: currentSheet, payload });
+    const authFav = activeFav !== null ? favorites[activeFav] : null;
+    if (authFav && authFav.linked) {
+      const linkedPayload = { date, venue: authFav.linked.venue, activities: authFav.linked.activities, method: authFav.linked.method, category: authFav.linked.category, sub: authFav.linked.sub, sub2: '', sub3: '', cost: Math.abs(cost), remarks, inputted };
+      queue.push({ sheet: authFav.linked.sheet, payload: linkedPayload });
+    }
+    saveQueue();
     addHistory(venue, cost, category);
     showToast('Queued — redirecting to sign in', 'success');
     login();
@@ -773,9 +837,29 @@ async function submitTransaction() {
 
   const ok = await addRowToExcel(currentSheet, payload);
   if (ok) {
+    // Handle linked transaction (e.g. Pay favorites create Cash-side row too)
+    const fav = activeFav !== null ? favorites[activeFav] : null;
+    if (fav && fav.linked) {
+      const linkedNow = new Date();
+      const linkedInputted = linkedNow.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true });
+      const linkedPayload = {
+        date, venue: fav.linked.venue, activities: fav.linked.activities,
+        method: fav.linked.method, category: fav.linked.category, sub: fav.linked.sub,
+        sub2: '', sub3: '', cost: Math.abs(cost), remarks, inputted: linkedInputted
+      };
+      const linkedOk = await addRowToExcel(fav.linked.sheet, linkedPayload);
+      if (linkedOk) {
+        showToast(`✓ Added to ${currentSheet} + ${fav.linked.sheet}`, 'success');
+      } else {
+        queue.push({ sheet: fav.linked.sheet, payload: linkedPayload }); saveQueue();
+        showToast(`✓ ${currentSheet} ok, ${fav.linked.sheet} queued`, 'success');
+      }
+    } else {
+      showToast(`✓ Added to ${currentSheet}`, 'success');
+    }
     addHistory(venue, cost, category);
-    showToast(`✓ Added to ${currentSheet}`, 'success');
     resetForm();
+    if (balanceCache) setTimeout(loadBalances, 1000);
   } else {
     queue.push({ sheet: currentSheet, payload }); saveQueue();
     addHistory(venue, cost, category);
@@ -906,6 +990,109 @@ function addSub(cat) {
   catSub[cat].push(name); saveCatSub(); buildCategoryDropdown(); input.value = ''; renderCatManager(); showToast(`"${name}" added to ${cat}`, 'success');
 }
 function deleteSub(cat, sub) { catSub[cat] = catSub[cat].filter(s => s !== sub); saveCatSub(); buildCategoryDropdown(); renderCatManager(); }
+
+// ── Balance Dashboard ──────────────────────────────────────────────────────
+
+async function getLastRow(tableName) {
+  const token = await getToken();
+  if (!token) return null;
+  const filePath = localStorage.getItem('cf_file_path');
+  if (!filePath) return null;
+  const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
+  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodedPath}:/workbook/tables/${encodeURIComponent(tableName)}/range/lastRow`;
+  try {
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.values ? data.values[0] : null;
+  } catch (e) { return null; }
+}
+
+async function getLastRowMapped(sheetKey) {
+  const tableName = localStorage.getItem(`cf_table_${sheetKey.toLowerCase()}`);
+  if (!tableName) return null;
+  const cols = await getTableColumns(tableName);
+  if (!cols) return null;
+  const vals = await getLastRow(tableName);
+  if (!vals) return null;
+  const map = {};
+  cols.forEach((c, i) => { map[c] = vals[i]; });
+  return map;
+}
+
+async function loadBalances() {
+  if (!accessToken) return;
+  const section = document.getElementById('balance-section');
+  section.style.display = '';
+  document.getElementById('balance-main').innerHTML = '<div class="bal-loading">Loading…</div>';
+
+  try {
+    const [cashRow, creditRow] = await Promise.all([
+      getLastRowMapped('Cash'),
+      getLastRowMapped('Credit')
+    ]);
+
+    balanceCache = { Cash: cashRow, Credit: creditRow };
+    balanceTs = Date.now();
+    renderBalances();
+  } catch (e) {
+    document.getElementById('balance-main').innerHTML = '<div class="bal-loading">Failed to load</div>';
+  }
+}
+
+function renderBalances() {
+  if (!balanceCache) return;
+  const mainEl = document.getElementById('balance-main');
+  const expandEl = document.getElementById('balance-expand');
+
+  // Render main balances
+  mainEl.innerHTML = MAIN_BALANCES.map(b => {
+    const row = balanceCache[b.sheet];
+    const val = row ? row[b.col] : null;
+    return renderBalCard(b.col, val);
+  }).join('');
+
+  // Render expanded (all other columns that are numeric)
+  const otherCards = [];
+  ['Cash', 'Credit'].forEach(sheet => {
+    const row = balanceCache[sheet];
+    if (!row) return;
+    const mainCols = MAIN_BALANCES.filter(b => b.sheet === sheet).map(b => b.col);
+    const skipCols = ['Date','Venue','Activities','Method','Category','Sub','Sub2','Sub3','Cost','Remarks','Inputted','Uploaded','Total'];
+    Object.entries(row).forEach(([col, val]) => {
+      if (mainCols.includes(col) || skipCols.map(s => s.toLowerCase()).includes(col.toLowerCase())) return;
+      if (typeof val === 'number' || (typeof val === 'string' && !isNaN(parseFloat(val)) && val.trim() !== '')) {
+        otherCards.push(renderBalCard(col, val));
+      }
+    });
+  });
+  expandEl.innerHTML = otherCards.join('');
+}
+
+function renderBalCard(label, val) {
+  const num = typeof val === 'number' ? val : parseFloat(val);
+  const display = isNaN(num) ? '—' : '$' + Math.abs(num).toFixed(2);
+  const cls = isNaN(num) ? 'zero' : (num > 0 ? 'positive' : (num < 0 ? 'negative' : 'zero'));
+  const sign = isNaN(num) ? '' : (num < 0 ? '−' : (num > 0 ? '' : ''));
+  return `<div class="bal-card"><div class="bal-label">${escHtml(label)}</div><div class="bal-value ${cls}">${sign}${display}</div></div>`;
+}
+
+function toggleBalMore() {
+  document.getElementById('bal-more-toggle').classList.toggle('open');
+  document.getElementById('balance-expand').classList.toggle('open');
+}
+
+async function getColumnBalance(sheetKey, colName) {
+  if (balanceCache && balanceCache[sheetKey] && (Date.now() - balanceTs < 300000)) {
+    return balanceCache[sheetKey][colName];
+  }
+  const row = await getLastRowMapped(sheetKey);
+  if (!row) return null;
+  if (!balanceCache) balanceCache = {};
+  balanceCache[sheetKey] = row;
+  balanceTs = Date.now();
+  return row[colName];
+}
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
