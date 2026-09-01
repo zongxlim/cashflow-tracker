@@ -265,7 +265,7 @@
   <div class="form-body" id="form-body">
     <div class="field-row">
       <div class="field"><label>Date <span class="required">*</span></label><input type="date" id="f-date"></div>
-      <div class="field"><label>Cost <span class="required">*</span></label><div class="cost-wrap"><span class="cost-sign" id="cost-sign" onclick="toggleCostSign()">+</span><input type="number" id="f-cost" inputmode="decimal" step="0.01" placeholder="0.00"></div></div>
+      <div class="field"><label>Cost <span class="required">*</span></label><div class="cost-wrap"><span class="cost-sign" id="cost-sign" onclick="toggleCostSign()">+</span><input type="text" id="f-cost" inputmode="decimal" placeholder="0.00" onblur="formatCost()"></div></div>
     </div>
     <div class="field"><label>Venue</label><input type="text" id="f-venue" placeholder="Where / who" autocapitalize="words"></div>
     <div class="field"><label>Activities</label><input type="text" id="f-activities" placeholder="What for"></div>
@@ -631,6 +631,17 @@ function toggleCostSign() {
   const el = document.getElementById('cost-sign');
   el.textContent = costNegative ? '−' : '+';
   el.classList.toggle('negative', costNegative);
+}
+
+function formatCost() {
+  const input = document.getElementById('f-cost');
+  const raw = input.value.trim();
+  if (!raw) return;
+  if (raw.includes('.')) return; // user typed a dot, leave as-is
+  const digits = raw.replace(/[^0-9]/g, '');
+  if (!digits) return;
+  const num = parseInt(digits, 10);
+  input.value = (num / 100).toFixed(2);
 }
 
 function toggleMore() {
