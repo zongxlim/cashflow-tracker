@@ -265,7 +265,7 @@
   <div class="form-body" id="form-body">
     <div class="field-row">
       <div class="field"><label>Date <span class="required">*</span></label><input type="date" id="f-date"></div>
-      <div class="field"><label>Cost <span class="required">*</span></label><div class="cost-wrap"><span class="cost-sign" id="cost-sign" onclick="toggleCostSign()">+</span><input type="text" id="f-cost" inputmode="decimal" placeholder="0.00" onblur="formatCost()" onchange="formatCost()"></div></div>
+      <div class="field"><label>Cost <span class="required">*</span></label><div class="cost-wrap"><span class="cost-sign" id="cost-sign" onclick="toggleCostSign()">+</span><input type="text" id="f-cost" inputmode="decimal" placeholder="0.00" onblur="formatCost()" onchange="formatCost()" oninput="autoFillRawCost=null"></div></div>
     </div>
     <div class="field"><label>Venue</label><input type="text" id="f-venue" placeholder="Where / who" autocapitalize="words"></div>
     <div class="field"><label>Activities</label><input type="text" id="f-activities" placeholder="What for"></div>
@@ -435,6 +435,7 @@ let currentSheet = 'Cash';
 let history = JSON.parse(localStorage.getItem('cf_history') || '[]');
 let queue = JSON.parse(localStorage.getItem('cf_queue') || '[]');
 let activeFav = null;
+let autoFillRawCost = null;
 let columnCache = {};
 let balanceCache = null;
 let balanceTs = 0;
@@ -728,7 +729,9 @@ function applyFav(idx) {
     document.getElementById('cost-sign').classList.add('negative');
     getColumnBalance('Credit', f.autoFillCol).then(val => {
       if (val !== null && val !== undefined) {
-        document.getElementById('f-cost').value = Math.abs(typeof val === 'number' ? val : parseFloat(val)).toFixed(2);
+        const raw = typeof val === 'number' ? val : parseFloat(val);
+        autoFillRawCost = Math.abs(raw);
+        document.getElementById('f-cost').value = Math.abs(raw).toFixed(2);
       }
       document.getElementById('f-cost').focus();
     });
@@ -833,8 +836,9 @@ window.addEventListener('online', () => { if (queue.length > 0) { showToast('Bac
 async function submitTransaction() {
   formatCost();
   const date = document.getElementById('f-date').value;
-  const rawCost = parseFloat(document.getElementById('f-cost').value);
+  const rawCost = autoFillRawCost !== null ? autoFillRawCost : parseFloat(document.getElementById('f-cost').value);
   const cost = costNegative ? -Math.abs(rawCost) : Math.abs(rawCost);
+  autoFillRawCost = null; // clear after use
   const venue = document.getElementById('f-venue').value.trim();
   const activities = document.getElementById('f-activities').value.trim();
   const mSel = document.getElementById('f-method').value;
@@ -932,6 +936,7 @@ function resetForm() {
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('f-date').value = today;
   costNegative = false;
+  autoFillRawCost = null;
   document.getElementById('cost-sign').textContent = '+';
   document.getElementById('cost-sign').classList.remove('negative');
   ['f-cost','f-venue','f-activities','f-method-custom','f-category-custom','f-sub-custom','f-sub2','f-sub3','f-remarks'].forEach(id => document.getElementById(id).value = '');
