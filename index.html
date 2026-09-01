@@ -787,19 +787,26 @@ function renderPendingBadge() {
   else { badge.style.display = 'none'; }
 }
 
+let isSyncing = false;
+
 async function syncQueue() {
+  if (isSyncing) return;
   if (queue.length === 0) return;
   if (!navigator.onLine) { showToast('Still offline — will sync when connected', 'error'); return; }
+  isSyncing = true;
   const badge = document.getElementById('pending-badge');
   badge.classList.add('syncing');
   showToast(`Syncing ${queue.length} transaction${queue.length > 1 ? 's' : ''}…`, 'success');
   const failed = [];
   for (const item of queue) {
-    const ok = await addRowToExcel(item.sheet, item.payload);
-    if (!ok) failed.push(item);
+    try {
+      const ok = await addRowToExcel(item.sheet, item.payload);
+      if (!ok) failed.push(item);
+    } catch (e) { failed.push(item); }
   }
   queue = failed; saveQueue();
   badge.classList.remove('syncing');
+  isSyncing = false;
   showToast(failed.length === 0 ? '✓ All synced' : `${failed.length} failed — tap to retry`, failed.length === 0 ? 'success' : 'error');
 }
 
@@ -860,7 +867,14 @@ async function submitTransaction() {
     return;
   }
 
-  const ok = await addRowToExcel(currentSheet, payload);
+  let ok = false;
+  try {
+    ok = await addRowToExcel(currentSheet, payload);
+  } catch (e) {
+    showToast('Network error — check connection and try again', 'error');
+    btn.disabled = false; btn.classList.remove('loading');
+    return;
+  }
   if (ok) {
     // Handle linked transaction (e.g. Pay favorites create Cash-side row too)
     const fav = activeFav !== null ? favorites[activeFav] : null;
@@ -886,10 +900,7 @@ async function submitTransaction() {
     resetForm();
     if (balanceCache) setTimeout(loadBalances, 1000);
   } else {
-    queue.push({ sheet: currentSheet, payload }); saveQueue();
-    addHistory(venue, cost, category);
-    showToast('Queued — will retry on next submit or sync', 'success');
-    resetForm();
+    showToast('Failed to add — check connection and try again', 'error');
   }
   btn.disabled = false; btn.classList.remove('loading');
 }
@@ -971,7 +982,7 @@ function editFav(i) {
   const sub = prompt('Sub:', f.sub); if (sub === null) return;
   const costStr = prompt('Cost (0 for variable):', f.cost); if (costStr === null) return;
   const sheet = prompt('Sheet (Cash/Credit):', f.sheet); if (sheet === null) return;
-  favorites[i] = { label, venue, activities, method, category, sub, cost: parseFloat(costStr) || 0, sheet };
+  favorites[i] = { ...f, label, venue, activities, method, category, sub, cost: parseFloat(costStr) || 0, sheet };
   saveFavorites(); renderFavManager(); renderFavChips(); showToast(`"${label}" updated`, 'success');
 }
 
