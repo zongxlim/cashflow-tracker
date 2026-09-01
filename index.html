@@ -417,10 +417,10 @@ const FAVORITES_DEFAULT = [
   { label:'Sencha', sheet:'Credit', venue:'Harney & Sons', activities:'Japanese Sencha (1lb Loose Leaf) (60-day sub)', method:'WF', category:'F&D', sub:'Caffeine', cost:43.79, remarks:'' },
   { label:'Cocofloss', sheet:'Credit', venue:'Cocofloss', activities:'32-yard floss (3-month sub)', method:'WF', category:'Need', sub:'', cost:9.73, remarks:'' },
   { label:'Vanicream', sheet:'Credit', venue:'LovelySkin', activities:'2x Vanicream (10-week sub)', method:'WF', category:'Need', sub:'Skincare', cost:32.71, remarks:'' },
-  { label:'Discover CB', sheet:'Credit', venue:'Discover', activities:'Cash back', method:'Discover', category:'', sub:'', cost:0, remarks:'' },
-  { label:'Savor1 CB', sheet:'Credit', venue:'Capital One', activities:'Cash back', method:'Savor1', category:'', sub:'', cost:0, remarks:'' },
-  { label:'WF CB', sheet:'Credit', venue:'Wells Fargo', activities:'Cash back', method:'WF', category:'', sub:'', cost:0, remarks:'' },
-  { label:'Chase CB', sheet:'Credit', venue:'Chase', activities:'Cash back', method:'Chase', category:'', sub:'', cost:0, remarks:'' },
+  { label:'Discover CB', sheet:'Credit', venue:'Discover', activities:'Cash back', method:'Discover', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
+  { label:'Savor1 CB', sheet:'Credit', venue:'Capital One', activities:'Cash back', method:'Savor1', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
+  { label:'WF CB', sheet:'Credit', venue:'Wells Fargo', activities:'Cash back', method:'WF', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
+  { label:'Chase CB', sheet:'Credit', venue:'Chase', activities:'Cash back', method:'Chase', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
   { label:'Discover Pay', sheet:'Credit', venue:'Discover', activities:'Discover Payment', method:'Discover', category:'', sub:'', cost:0, remarks:'', autoFillCol:'Discover', linked:{ sheet:'Cash', venue:'Discover', activities:'Discover Payment', method:'Checking', category:'Credit', sub:'' } },
   { label:'Savor1 Pay', sheet:'Credit', venue:'Capital One', activities:'SavorOne Payment', method:'Savor1', category:'', sub:'', cost:0, remarks:'', autoFillCol:'Savor1', linked:{ sheet:'Cash', venue:'Capital One', activities:'SavorOne Payment', method:'Checking', category:'Credit', sub:'' } },
   { label:'WF Pay', sheet:'Credit', venue:'Wells Fargo', activities:'WF Payment', method:'WF', category:'', sub:'', cost:0, remarks:'', autoFillCol:'WF', linked:{ sheet:'Cash', venue:'Wells Fargo', activities:'WF Payment', method:'Checking', category:'Credit', sub:'' } },
@@ -718,7 +718,7 @@ function applyFav(idx) {
     });
   } else {
     document.getElementById('f-cost').value = f.cost ? Math.abs(f.cost) : '';
-    costNegative = f.cost < 0;
+    costNegative = f.cost < 0 || !!f.negativeDefault;
   }
   document.getElementById('cost-sign').textContent = costNegative ? '−' : '+';
   document.getElementById('cost-sign').classList.toggle('negative', costNegative);
