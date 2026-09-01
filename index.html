@@ -265,7 +265,7 @@
   <div class="form-body" id="form-body">
     <div class="field-row">
       <div class="field"><label>Date <span class="required">*</span></label><input type="date" id="f-date"></div>
-      <div class="field"><label>Cost <span class="required">*</span></label><div class="cost-wrap"><span class="cost-sign" id="cost-sign" onclick="toggleCostSign()">+</span><input type="text" id="f-cost" inputmode="decimal" placeholder="0.00" onblur="formatCost()"></div></div>
+      <div class="field"><label>Cost <span class="required">*</span></label><div class="cost-wrap"><span class="cost-sign" id="cost-sign" onclick="toggleCostSign()">+</span><input type="text" id="f-cost" inputmode="decimal" placeholder="0.00" onblur="formatCost()" onchange="formatCost()"></div></div>
     </div>
     <div class="field"><label>Venue</label><input type="text" id="f-venue" placeholder="Where / who" autocapitalize="words"></div>
     <div class="field"><label>Activities</label><input type="text" id="f-activities" placeholder="What for"></div>
@@ -622,6 +622,11 @@ window.onload = () => {
   switchSheet('Credit');
   renderHistory();
   renderPendingBadge();
+
+  // iOS fallback: format cost when tapping anywhere outside the cost field
+  document.addEventListener('touchstart', (e) => {
+    if (e.target.id !== 'f-cost') formatCost();
+  });
 };
 
 let costNegative = false;
@@ -826,6 +831,7 @@ window.addEventListener('online', () => { if (queue.length > 0) { showToast('Bac
 // ── Submit ────────────────────────────────────────────────────────────────────
 
 async function submitTransaction() {
+  formatCost();
   const date = document.getElementById('f-date').value;
   const rawCost = parseFloat(document.getElementById('f-cost').value);
   const cost = costNegative ? -Math.abs(rawCost) : Math.abs(rawCost);
