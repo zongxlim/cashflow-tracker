@@ -640,13 +640,16 @@ function toggleCostSign() {
 
 function formatCost() {
   const input = document.getElementById('f-cost');
-  const raw = input.value.trim();
+  let raw = input.value.trim().replace(/,/g, '');
   if (!raw) return;
-  if (raw.includes('.')) return; // user typed a dot, leave as-is
-  const digits = raw.replace(/[^0-9]/g, '');
-  if (!digits) return;
-  const num = parseInt(digits, 10);
-  input.value = (num / 100).toFixed(2);
+  if (!raw.includes('.')) {
+    const digits = raw.replace(/[^0-9]/g, '');
+    if (!digits) return;
+    raw = (parseInt(digits, 10) / 100).toFixed(2);
+  }
+  const num = parseFloat(raw);
+  if (isNaN(num)) return;
+  input.value = Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function toggleMore() {
@@ -728,12 +731,12 @@ function applyFav(idx) {
     document.getElementById('cost-sign').classList.add('negative');
     getColumnBalance('Credit', f.autoFillCol).then(val => {
       if (val !== null && val !== undefined) {
-        document.getElementById('f-cost').value = Math.abs(typeof val === 'number' ? val : parseFloat(val)).toFixed(2);
+        document.getElementById('f-cost').value = Math.abs(typeof val === 'number' ? val : parseFloat(val)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       }
       document.getElementById('f-cost').focus();
     });
   } else {
-    document.getElementById('f-cost').value = f.cost ? Math.abs(f.cost) : '';
+    document.getElementById('f-cost').value = f.cost ? Math.abs(f.cost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
     costNegative = f.cost < 0 || !!f.negativeDefault;
   }
   document.getElementById('cost-sign').textContent = costNegative ? '−' : '+';
@@ -833,7 +836,7 @@ window.addEventListener('online', () => { if (queue.length > 0) { showToast('Bac
 async function submitTransaction() {
   formatCost();
   const date = document.getElementById('f-date').value;
-  const rawCost = parseFloat(document.getElementById('f-cost').value);
+  const rawCost = parseFloat(document.getElementById('f-cost').value.replace(/,/g, ''));
   const cost = costNegative ? -Math.abs(rawCost) : Math.abs(rawCost);
   const venue = document.getElementById('f-venue').value.trim();
   const activities = document.getElementById('f-activities').value.trim();
