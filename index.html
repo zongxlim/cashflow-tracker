@@ -447,6 +447,13 @@ const MAIN_BALANCES = [
 ];
 
 function saveCatSub() { localStorage.setItem('cf_cat_sub', JSON.stringify(catSub)); }
+
+function localDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 function saveFavorites() { localStorage.setItem('cf_favorites', JSON.stringify(favorites)); }
 function saveQueue() { localStorage.setItem('cf_queue', JSON.stringify(queue)); renderPendingBadge(); }
 
@@ -615,7 +622,7 @@ async function addRowToExcel(sheetKey, payload) {
 
 window.onload = () => {
   const today = new Date();
-  document.getElementById('f-date').value = today.toISOString().split('T')[0];
+  document.getElementById('f-date').value = localDateStr(today);
   document.getElementById('today-label').textContent =
     today.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
   initMsal();
@@ -932,7 +939,7 @@ function addHistory(venue, cost, category) {
 }
 
 function resetForm() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateStr(new Date());
   document.getElementById('f-date').value = today;
   costNegative = false;
   document.getElementById('cost-sign').textContent = '+';
