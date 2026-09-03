@@ -590,7 +590,7 @@ async function addRowToExcel(sheetKey, payload) {
   if (!cols) return false;
 
   // Map payload fields to column names (case-insensitive)
-  const uploaded = new Date().toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true });
+  const uploaded = new Date().toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true, timeZoneName:'short' });
   const fieldMap = {};
   const payloadMap = {
     'date': payload.date, 'venue': payload.venue, 'activities': payload.activities,
@@ -861,7 +861,7 @@ async function submitTransaction() {
   if (isNaN(rawCost)) return showToast('Enter a valid cost', 'error');
 
   const now = new Date();
-  const inputted = now.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true });
+  const inputted = now.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true, timeZoneName:'short' });
   const payload = { date, venue, activities, method, category, sub, sub2, sub3, cost, remarks, inputted };
   const btn = document.getElementById('btn-submit');
   btn.disabled = true; btn.classList.add('loading');
@@ -907,7 +907,7 @@ async function submitTransaction() {
     const fav = activeFav !== null ? favorites[activeFav] : null;
     if (fav && fav.linked) {
       const linkedNow = new Date();
-      const linkedInputted = linkedNow.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true });
+      const linkedInputted = linkedNow.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true, timeZoneName:'short' });
       const linkedPayload = {
         date, venue: fav.linked.venue, activities: fav.linked.activities,
         method: fav.linked.method, category: fav.linked.category, sub: fav.linked.sub,
