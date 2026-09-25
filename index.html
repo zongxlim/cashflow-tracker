@@ -464,6 +464,8 @@ const FAVORITES_DEFAULT = [
   { label:'Sencha', sheet:'Credit', venue:'Harney & Sons', activities:'Japanese Sencha (1lb Loose Leaf) (60-day sub)', method:'WF', category:'F&D', sub:'Caffeine', cost:43.79, remarks:'' },
   { label:'Cocofloss', sheet:'Credit', venue:'Cocofloss', activities:'32-yard floss (3-month sub)', method:'WF', category:'Need', sub:'', cost:9.73, remarks:'' },
   { label:'Vanicream', sheet:'Credit', venue:'LovelySkin', activities:'2x Vanicream (10-week sub)', method:'WF', category:'Need', sub:'Skincare', cost:32.71, remarks:'' },
+  { label:'La Roche Posay', sheet:'Credit', venue:'Ulta', activities:'La Roche Posay Cleanser (5-month sub)', method:'WF', category:'Need', sub:'Skincare', cost:20.70, remarks:'' },
+  { label:'Davines', sheet:'Credit', venue:'Davines', activities:'Davines Dede (250ml) (6-month sub)', method:'WF', category:'Hair', sub:'Haircare', cost:40.35, remarks:'' },
   { label:'Discover CB', sheet:'Credit', venue:'Discover', activities:'Cash back', method:'Discover', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
   { label:'Savor1 CB', sheet:'Credit', venue:'Capital One', activities:'Cash back', method:'Savor1', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
   { label:'WF CB', sheet:'Credit', venue:'Wells Fargo', activities:'Cash back', method:'WF', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
@@ -477,7 +479,25 @@ const FAVORITES_DEFAULT = [
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let catSub = JSON.parse(localStorage.getItem('cf_cat_sub') || 'null') || JSON.parse(JSON.stringify(CAT_SUB_DEFAULT));
-let favorites = JSON.parse(localStorage.getItem('cf_favorites') || 'null') || JSON.parse(JSON.stringify(FAVORITES_DEFAULT));
+let favorites = loadFavorites();
+
+function loadFavorites() {
+  const clone = o => JSON.parse(JSON.stringify(o));
+  let stored = null;
+  try { stored = JSON.parse(localStorage.getItem('cf_favorites') || 'null'); } catch (e) {}
+  if (!Array.isArray(stored)) return clone(FAVORITES_DEFAULT);
+  let deleted = [];
+  try { deleted = JSON.parse(localStorage.getItem('cf_fav_deleted') || '[]'); } catch (e) {}
+  const skip = new Set([...stored.map(f => f.label), ...deleted]);
+  FAVORITES_DEFAULT.forEach((d, i) => {
+    if (skip.has(d.label)) return;
+    // Insert before the next default that already exists in the saved list (keeps intended order)
+    const nextLabels = FAVORITES_DEFAULT.slice(i + 1).map(f => f.label);
+    const pos = stored.findIndex(f => nextLabels.includes(f.label));
+    stored.splice(pos === -1 ? stored.length : pos, 0, clone(d));
+  });
+  return stored;
+}
 let currentSheet = 'Cash';
 let history = JSON.parse(localStorage.getItem('cf_history') || '[]');
 let queue = JSON.parse(localStorage.getItem('cf_queue') || '[]');
@@ -1222,6 +1242,9 @@ function editFav(i) {
 
 function deleteFav(i) {
   if (!confirm(`Delete "${favorites[i].label}"?`)) return;
+  const deleted = JSON.parse(localStorage.getItem('cf_fav_deleted') || '[]');
+  deleted.push(favorites[i].label);
+  localStorage.setItem('cf_fav_deleted', JSON.stringify(deleted));
   favorites.splice(i, 1); saveFavorites(); renderFavManager(); renderFavChips(); showToast('Deleted', 'success');
 }
 
