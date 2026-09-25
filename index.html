@@ -44,6 +44,12 @@
     animation: pulse-pending 2s ease-in-out infinite;
   }
   .pending-badge.syncing { animation: none; opacity: 0.6; pointer-events: none; }
+  .sync-badge {
+    background: var(--accent-glow); border: 1px solid var(--accent-dim); color: var(--accent);
+    font-family: var(--mono); font-size: 11px; padding: 6px 12px; border-radius: 20px;
+    cursor: pointer; letter-spacing: 0.03em;
+  }
+  .sync-badge.syncing { opacity: 0.6; pointer-events: none; }
   @keyframes pulse-pending { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
 
   .header-right { display: flex; gap: 8px; align-items: center; }
@@ -256,6 +262,7 @@
       <div class="subtitle" id="today-label">— — —</div>
     </div>
     <div class="header-right">
+      <div class="sync-badge" id="sync-badge" onclick="syncQueue()" style="display:none;">⇪ sync</div>
       <div class="pending-badge" id="pending-badge" onclick="openQueueReview()" style="display:none;">
         <span id="pending-count">0</span> pending
       </div>
@@ -858,8 +865,9 @@ function onSubChange() {
 
 function renderPendingBadge() {
   const badge = document.getElementById('pending-badge');
-  if (queue.length > 0) { document.getElementById('pending-count').textContent = queue.length; badge.style.display = ''; }
-  else { badge.style.display = 'none'; }
+  const syncBadge = document.getElementById('sync-badge');
+  if (queue.length > 0) { document.getElementById('pending-count').textContent = queue.length; badge.style.display = ''; syncBadge.style.display = ''; }
+  else { badge.style.display = 'none'; syncBadge.style.display = 'none'; }
 }
 
 function toggleQueueMode() {
@@ -927,6 +935,8 @@ async function syncQueue() {
   isSyncing = true;
   const badge = document.getElementById('pending-badge');
   badge.classList.add('syncing');
+  const syncBadge = document.getElementById('sync-badge');
+  syncBadge.classList.add('syncing'); syncBadge.textContent = 'syncing…';
   const syncBtn = document.getElementById('btn-sync-all');
   if (syncBtn) { syncBtn.disabled = true; syncBtn.textContent = 'Syncing…'; }
   showToast(`Syncing ${queue.length} transaction${queue.length > 1 ? 's' : ''}…`, 'success');
@@ -939,6 +949,7 @@ async function syncQueue() {
   }
   queue = failed; saveQueue();
   badge.classList.remove('syncing');
+  syncBadge.classList.remove('syncing'); syncBadge.textContent = '⇪ sync';
   isSyncing = false;
   renderQueueReview();
   if (balanceCache) loadBalances();
