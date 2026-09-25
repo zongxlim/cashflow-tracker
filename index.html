@@ -175,6 +175,32 @@
   .config-field label { font-family: var(--mono); font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 8px; letter-spacing: 0.08em; text-transform: uppercase; }
   .config-field input { width: 100%; }
   .config-save { width: 100%; padding: 14px; background: var(--accent); border: none; border-radius: 10px; color: #fff; font-family: var(--sans); font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+
+  .btn-toggle {
+    width: 100%; padding: 12px; border-radius: 10px; font-family: var(--mono); font-size: 13px;
+    font-weight: 600; cursor: pointer; letter-spacing: 0.03em; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text-muted);
+  }
+  .btn-toggle.on { background: rgba(74,222,128,0.12); border-color: var(--success); color: var(--success); }
+
+  .queue-item {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .queue-item .qi-left { flex: 1; min-width: 0; }
+  .queue-item .qi-venue { font-size: 13px; font-weight: 500; }
+  .queue-item .qi-meta { font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+  .queue-item .qi-amount { font-family: var(--mono); font-size: 13px; font-weight: 500; white-space: nowrap; }
+  .queue-item.sheet-Cash .qi-amount { color: var(--cash-color); }
+  .queue-item.sheet-Credit .qi-amount { color: var(--credit-color); }
+  .queue-item .qi-delete { background: none; border: none; color: var(--error); font-size: 16px; cursor: pointer; padding: 0 4px; opacity: 0.7; }
+  .queue-item .qi-delete:hover { opacity: 1; }
+  .queue-empty { font-family: var(--mono); font-size: 12px; color: var(--text-dim); text-align: center; padding: 24px 0; }
+  .btn-sync-all {
+    width: 100%; padding: 14px; background: var(--accent); border: none; border-radius: 10px;
+    color: #fff; font-family: var(--sans); font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 12px;
+  }
+  .btn-sync-all:disabled { opacity: 0.5; cursor: not-allowed; }
   .divider { height: 1px; background: var(--border); margin: 24px 0; }
 
   .history-section { padding: 28px 24px 0; }
@@ -230,7 +256,7 @@
       <div class="subtitle" id="today-label">— — —</div>
     </div>
     <div class="header-right">
-      <div class="pending-badge" id="pending-badge" onclick="syncQueue()" style="display:none;">
+      <div class="pending-badge" id="pending-badge" onclick="openQueueReview()" style="display:none;">
         <span id="pending-count">0</span> pending
       </div>
       <div class="auth-badge signed-out" id="auth-badge" onclick="handleAuthClick()">sign in</div>
@@ -335,6 +361,12 @@
 
   <div class="divider"></div>
 
+  <h3>Queue Mode</h3>
+  <p class="desc" style="margin-bottom:14px;">When on, submitting a transaction saves it locally instantly instead of waiting for Excel each time. Review and sync a batch when ready via the pending badge.</p>
+  <button class="btn-toggle" id="btn-queue-mode" onclick="toggleQueueMode()"></button>
+
+  <div class="divider"></div>
+
   <h3>Azure App</h3>
   <p class="desc" style="margin-bottom:14px;">Paste your Application (client) ID from Azure app registration.</p>
   <div class="config-field">
@@ -381,6 +413,14 @@
   <p class="desc" style="font-size:10px;">All settings saved in localStorage on this device only. Transaction data only flows to Microsoft when you submit.</p>
 </div>
 
+<div class="config-panel" id="queue-panel">
+  <button class="config-close" onclick="closeQueueReview()">✕ close</button>
+  <h2>Pending Transactions</h2>
+  <p class="desc">Review before syncing to Excel. Delete any you don't want to send.</p>
+  <div id="queue-list"></div>
+  <button class="btn-sync-all" id="btn-sync-all" onclick="syncQueue()">Sync all</button>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -409,7 +449,7 @@ const CAT_SUB_DEFAULT = {
 
 const FAVORITES_DEFAULT = [
   { label:'iCloud+', sheet:'Credit', venue:'Apple', activities:'iCloud+', method:'WF', category:'Want', sub:'Service', cost:2.99, remarks:'11th' },
-  { label:'Claude Pro', sheet:'Credit', venue:'Anthropic', activities:'Claude Pro', method:'WF', category:'Want', sub:'Service', cost:20.00, remarks:'13th' },
+  { label:'Claude Pro', sheet:'Credit', venue:'Anthropic', activities:'Claude Pro', method:'WF', category:'Want', sub:'Service', cost:20.00, remarks:'25th' },
   { label:'State Farm', sheet:'Credit', venue:'State Farm', activities:"Renter's insurance", method:'WF', category:'Need', sub:'Insurance', cost:13.09, remarks:'15th' },
   { label:'Franz Fahrenheit', sheet:'Credit', venue:'Apple', activities:'Franz Fahrenheit (monthly)', method:'WF', category:'Want', sub:'Service', cost:1.08, remarks:'17th' },
   { label:'Spotify', sheet:'Credit', venue:'Spotify', activities:'Monthly sub', method:'Savor1', category:'Want', sub:'Music', cost:14.16, remarks:'25th' },
@@ -434,6 +474,7 @@ let favorites = JSON.parse(localStorage.getItem('cf_favorites') || 'null') || JS
 let currentSheet = 'Cash';
 let history = JSON.parse(localStorage.getItem('cf_history') || '[]');
 let queue = JSON.parse(localStorage.getItem('cf_queue') || '[]');
+let queueMode = localStorage.getItem('cf_queue_mode') !== '0'; // default ON
 let activeFav = null;
 let columnCache = {};
 let balanceCache = null;
@@ -496,11 +537,12 @@ async function silentLogin(account) {
   } catch (e) { /* needs interactive */ }
 }
 
-async function login() {
+async function login(saveDraft = true) {
   const clientId = localStorage.getItem('cf_client_id');
   if (!clientId) { showToast('Set Client ID in ⚙ setup first', 'error'); return; }
   if (!msalInstance) initMsal();
   if (!msalInstance) return;
+  if (saveDraft) saveFormDraft();
   msalInstance.loginRedirect({ scopes: ['Files.ReadWrite'] });
 }
 
@@ -629,6 +671,8 @@ window.onload = () => {
   switchSheet('Credit');
   renderHistory();
   renderPendingBadge();
+  updateQueueModeUI();
+  restoreFormDraft();
 
   // iOS fallback: format cost when tapping anywhere outside the cost field
   document.addEventListener('touchstart', (e) => {
@@ -813,6 +857,61 @@ function renderPendingBadge() {
   else { badge.style.display = 'none'; }
 }
 
+function toggleQueueMode() {
+  queueMode = !queueMode;
+  localStorage.setItem('cf_queue_mode', queueMode ? '1' : '0');
+  updateQueueModeUI();
+}
+
+function updateQueueModeUI() {
+  const btn = document.getElementById('btn-queue-mode');
+  if (!btn) return;
+  btn.textContent = queueMode ? '✓ Queue mode ON' : 'Queue mode OFF';
+  btn.classList.toggle('on', queueMode);
+}
+
+function openQueueReview() {
+  renderQueueReview();
+  document.getElementById('queue-panel').classList.add('open');
+}
+
+function closeQueueReview() {
+  document.getElementById('queue-panel').classList.remove('open');
+}
+
+function renderQueueReview() {
+  const el = document.getElementById('queue-list');
+  const syncBtn = document.getElementById('btn-sync-all');
+  if (queue.length === 0) {
+    el.innerHTML = '<div class="queue-empty">No pending transactions</div>';
+    syncBtn.disabled = true;
+    syncBtn.textContent = 'Sync all';
+    return;
+  }
+  syncBtn.disabled = false;
+  syncBtn.textContent = `Sync all (${queue.length})`;
+  el.innerHTML = queue.map((item, i) => {
+    const p = item.payload;
+    const num = typeof p.cost === 'number' ? p.cost : parseFloat(p.cost);
+    const display = isNaN(num) ? '—' : '$' + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const sign = !isNaN(num) && num < 0 ? '−' : '';
+    return `<div class="queue-item sheet-${item.sheet}">
+      <div class="qi-left">
+        <div class="qi-venue">${escHtml(p.venue || '—')}</div>
+        <div class="qi-meta">${escHtml(p.date)} · ${escHtml(item.sheet)}${p.category ? ' · ' + escHtml(p.category) : ''}</div>
+      </div>
+      <div class="qi-amount">${sign}${display}</div>
+      <button class="qi-delete" onclick="deleteQueueItem(${i})" title="Delete">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function deleteQueueItem(idx) {
+  queue.splice(idx, 1);
+  saveQueue();
+  renderQueueReview();
+}
+
 let isSyncing = false;
 
 async function syncQueue() {
@@ -822,6 +921,8 @@ async function syncQueue() {
   isSyncing = true;
   const badge = document.getElementById('pending-badge');
   badge.classList.add('syncing');
+  const syncBtn = document.getElementById('btn-sync-all');
+  if (syncBtn) { syncBtn.disabled = true; syncBtn.textContent = 'Syncing…'; }
   showToast(`Syncing ${queue.length} transaction${queue.length > 1 ? 's' : ''}…`, 'success');
   const failed = [];
   for (const item of queue) {
@@ -833,10 +934,12 @@ async function syncQueue() {
   queue = failed; saveQueue();
   badge.classList.remove('syncing');
   isSyncing = false;
+  renderQueueReview();
+  if (balanceCache) loadBalances();
   showToast(failed.length === 0 ? '✓ All synced' : `${failed.length} failed — tap to retry`, failed.length === 0 ? 'success' : 'error');
 }
 
-window.addEventListener('online', () => { if (queue.length > 0) { showToast('Back online — syncing…', 'success'); setTimeout(syncQueue, 1000); } });
+window.addEventListener('online', () => { if (queue.length > 0 && !queueMode) { showToast('Back online — syncing…', 'success'); setTimeout(syncQueue, 1000); } });
 
 // ── Submit ────────────────────────────────────────────────────────────────────
 
@@ -866,32 +969,34 @@ async function submitTransaction() {
   const btn = document.getElementById('btn-submit');
   btn.disabled = true; btn.classList.add('loading');
 
-  if (!navigator.onLine) {
-    queue.push({ sheet: currentSheet, payload }); 
-    const offlineFav = activeFav !== null ? favorites[activeFav] : null;
-    if (offlineFav && offlineFav.linked) {
-      const linkedPayload = { date, venue: offlineFav.linked.venue, activities: offlineFav.linked.activities, method: offlineFav.linked.method, category: offlineFav.linked.category, sub: offlineFav.linked.sub, sub2: '', sub3: '', cost: Math.abs(cost), remarks, inputted };
-      queue.push({ sheet: offlineFav.linked.sheet, payload: linkedPayload });
+  function queueLocally(toastMsg) {
+    queue.push({ sheet: currentSheet, payload });
+    const fav = activeFav !== null ? favorites[activeFav] : null;
+    if (fav && fav.linked) {
+      const linkedPayload = { date, venue: fav.linked.venue, activities: fav.linked.activities, method: fav.linked.method, category: fav.linked.category, sub: fav.linked.sub, sub2: '', sub3: '', cost: Math.abs(cost), remarks, inputted };
+      queue.push({ sheet: fav.linked.sheet, payload: linkedPayload });
     }
     saveQueue();
     addHistory(venue, cost, category);
-    showToast('Queued offline — will sync later', 'success');
+    showToast(toastMsg, 'success');
+  }
+
+  if (!navigator.onLine) {
+    queueLocally('Queued offline — will sync later');
     resetForm(); btn.disabled = false; btn.classList.remove('loading'); return;
   }
 
   // If not signed in, queue first then trigger login (redirect navigates away)
   if (!msalInstance || msalInstance.getAllAccounts().length === 0) {
-    queue.push({ sheet: currentSheet, payload });
-    const authFav = activeFav !== null ? favorites[activeFav] : null;
-    if (authFav && authFav.linked) {
-      const linkedPayload = { date, venue: authFav.linked.venue, activities: authFav.linked.activities, method: authFav.linked.method, category: authFav.linked.category, sub: authFav.linked.sub, sub2: '', sub3: '', cost: Math.abs(cost), remarks, inputted };
-      queue.push({ sheet: authFav.linked.sheet, payload: linkedPayload });
-    }
-    saveQueue();
-    addHistory(venue, cost, category);
-    showToast('Queued — redirecting to sign in', 'success');
-    login();
+    queueLocally('Queued — redirecting to sign in');
+    login(false); // already queued, skip draft save
     return;
+  }
+
+  // Queue mode: save locally instantly, sync later in a batch
+  if (queueMode) {
+    queueLocally(`✓ Queued (${queue.length + 1} pending)`);
+    resetForm(); btn.disabled = false; btn.classList.remove('loading'); return;
   }
 
   let ok = false;
@@ -951,6 +1056,90 @@ function resetForm() {
   activeFav = null;
   document.querySelectorAll('.fav-chip').forEach(c => c.classList.remove('active'));
   onMethodChange(); onCategoryChange();
+}
+
+// ── Form Draft (preserves unsaved input across the sign-in redirect) ──────────
+
+function saveFormDraft() {
+  const draft = {
+    sheet: currentSheet,
+    date: document.getElementById('f-date').value,
+    cost: document.getElementById('f-cost').value,
+    costNegative,
+    venue: document.getElementById('f-venue').value,
+    activities: document.getElementById('f-activities').value,
+    method: document.getElementById('f-method').value,
+    methodCustom: document.getElementById('f-method-custom').value,
+    category: document.getElementById('f-category').value,
+    categoryCustom: document.getElementById('f-category-custom').value,
+    sub: document.getElementById('f-sub').value,
+    subCustom: document.getElementById('f-sub-custom').value,
+    sub2: document.getElementById('f-sub2').value,
+    sub3: document.getElementById('f-sub3').value,
+    remarks: document.getElementById('f-remarks').value,
+    activeFav
+  };
+  localStorage.setItem('cf_draft', JSON.stringify(draft));
+}
+
+function restoreFormDraft() {
+  const raw = localStorage.getItem('cf_draft');
+  if (!raw) return;
+  localStorage.removeItem('cf_draft');
+  let draft;
+  try { draft = JSON.parse(raw); } catch (e) { return; }
+  if (!draft || draft.sheet === 'Balances') return;
+
+  switchSheet(draft.sheet || 'Credit');
+
+  document.getElementById('f-date').value = draft.date || document.getElementById('f-date').value;
+  document.getElementById('f-venue').value = draft.venue || '';
+  document.getElementById('f-activities').value = draft.activities || '';
+  document.getElementById('f-remarks').value = draft.remarks || '';
+  document.getElementById('f-sub2').value = draft.sub2 || '';
+  document.getElementById('f-sub3').value = draft.sub3 || '';
+
+  const methodSel = document.getElementById('f-method');
+  if (draft.method) {
+    methodSel.value = draft.method;
+    if (draft.method === '__other__') {
+      document.getElementById('f-method-custom').value = draft.methodCustom || '';
+      document.getElementById('f-method-custom').classList.add('visible');
+    }
+  }
+  onMethodChange();
+
+  const catSel = document.getElementById('f-category');
+  if (draft.category) {
+    catSel.value = draft.category;
+    onCategoryChange();
+    if (draft.category === '__other__') {
+      document.getElementById('f-category-custom').value = draft.categoryCustom || '';
+      document.getElementById('f-category-custom').classList.add('visible');
+    }
+  }
+
+  const subSel = document.getElementById('f-sub');
+  if (draft.sub) {
+    subSel.value = draft.sub;
+    if (draft.sub === '__other__') {
+      document.getElementById('f-sub-custom').value = draft.subCustom || '';
+      document.getElementById('f-sub-custom').classList.add('visible');
+    }
+  }
+
+  document.getElementById('f-cost').value = draft.cost || '';
+  costNegative = !!draft.costNegative;
+  document.getElementById('cost-sign').textContent = costNegative ? '−' : '+';
+  document.getElementById('cost-sign').classList.toggle('negative', costNegative);
+
+  if (typeof draft.activeFav === 'number' && favorites[draft.activeFav]) {
+    activeFav = draft.activeFav;
+    const chip = document.querySelector(`.fav-chip[data-idx="${draft.activeFav}"]`);
+    if (chip) chip.classList.add('active');
+  }
+
+  showToast('Restored your unsaved entry', 'success');
 }
 
 // ── History ───────────────────────────────────────────────────────────────────
