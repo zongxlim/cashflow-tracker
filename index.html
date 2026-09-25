@@ -1140,7 +1140,7 @@ async function syncQueue() {
   ].filter(Boolean).join(' · '), 'error');
 }
 
-window.addEventListener('online', () => { if (queue.length > 0 && !queueMode) { showToast('Back online — syncing…', 'success'); setTimeout(syncQueue, 1000); } });
+window.addEventListener('online', () => { if (!queueMode && queue.some(i => !i.uncertain)) { showToast('Back online — syncing…', 'success'); setTimeout(syncQueue, 1000); } });
 
 // ── Submit ────────────────────────────────────────────────────────────────────
 
@@ -1168,6 +1168,7 @@ async function commitRows(rows, label) {
       const rest = batches.slice(b).flatMap(x => x.items);
       const added = rows.length - rest.length;
       rest.forEach(r => queue.push(r)); saveQueue();
+      if (added > 0 && balanceCache) setTimeout(loadBalances, 1000);
       showToast(status === 'unsure'
         ? '⚠ Excel didn\'t confirm — check Excel, then review pending'
         : `✓ ${added} added, ${rest.length} queued`, status === 'unsure' ? 'error' : 'success');
