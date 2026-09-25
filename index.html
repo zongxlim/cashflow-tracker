@@ -489,6 +489,10 @@ const MAIN_BALANCES = [
 
 function saveCatSub() { localStorage.setItem('cf_cat_sub', JSON.stringify(catSub)); }
 
+function fmtMoney(n) {
+  return Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function localDateStr(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -563,7 +567,8 @@ async function getToken() {
     accessToken = res.accessToken;
     return accessToken;
   } catch (e) {
-    // Silent failed, redirect to login
+    // Silent failed, redirect to login (preserve any unsaved input first)
+    saveFormDraft();
     msalInstance.acquireTokenRedirect({ scopes: ['Files.ReadWrite'] });
     return null; // redirect will navigate away
   }
@@ -700,7 +705,7 @@ function formatCost() {
   }
   const num = parseFloat(raw);
   if (isNaN(num)) return;
-  input.value = Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  input.value = fmtMoney(num);
 }
 
 function toggleMore() {
@@ -781,13 +786,13 @@ function applyFav(idx) {
     document.getElementById('cost-sign').textContent = '\u2212';
     document.getElementById('cost-sign').classList.add('negative');
     getColumnBalance('Credit', f.autoFillCol).then(val => {
-      if (val !== null && val !== undefined) {
-        document.getElementById('f-cost').value = Math.abs(typeof val === 'number' ? val : parseFloat(val)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      }
+      if (activeFav !== idx) return; // user moved on (reset / other favorite)
+      const num = typeof val === 'number' ? val : parseFloat(val);
+      if (isFinite(num)) document.getElementById('f-cost').value = fmtMoney(num);
       document.getElementById('f-cost').focus();
     });
   } else {
-    document.getElementById('f-cost').value = f.cost ? Math.abs(f.cost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+    document.getElementById('f-cost').value = f.cost ? fmtMoney(f.cost) : '';
     costNegative = f.cost < 0 || !!f.negativeDefault;
   }
   document.getElementById('cost-sign').textContent = costNegative ? '−' : '+';
@@ -893,7 +898,7 @@ function renderQueueReview() {
   el.innerHTML = queue.map((item, i) => {
     const p = item.payload;
     const num = typeof p.cost === 'number' ? p.cost : parseFloat(p.cost);
-    const display = isNaN(num) ? '—' : '$' + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const display = isNaN(num) ? '—' : '$' + fmtMoney(num);
     const sign = !isNaN(num) && num < 0 ? '−' : '';
     return `<div class="queue-item sheet-${item.sheet}">
       <div class="qi-left">
@@ -907,6 +912,7 @@ function renderQueueReview() {
 }
 
 function deleteQueueItem(idx) {
+  if (isSyncing) { showToast('Wait for sync to finish', 'error'); return; }
   queue.splice(idx, 1);
   saveQueue();
   renderQueueReview();
@@ -978,7 +984,7 @@ async function submitTransaction() {
     }
     saveQueue();
     addHistory(venue, cost, category);
-    showToast(toastMsg, 'success');
+    showToast(toastMsg || `✓ Queued (${queue.length} pending)`, 'success');
   }
 
   if (!navigator.onLine) {
@@ -988,14 +994,15 @@ async function submitTransaction() {
 
   // If not signed in, queue first then trigger login (redirect navigates away)
   if (!msalInstance || msalInstance.getAllAccounts().length === 0) {
-    queueLocally('Queued — redirecting to sign in');
+    queueLocally('Queued — sign in to sync');
+    resetForm(); btn.disabled = false; btn.classList.remove('loading');
     login(false); // already queued, skip draft save
     return;
   }
 
   // Queue mode: save locally instantly, sync later in a batch
   if (queueMode) {
-    queueLocally(`✓ Queued (${queue.length + 1} pending)`);
+    queueLocally();
     resetForm(); btn.disabled = false; btn.classList.remove('loading'); return;
   }
 
@@ -1079,6 +1086,9 @@ function saveFormDraft() {
     remarks: document.getElementById('f-remarks').value,
     activeFav
   };
+  const hasInput = ['cost','venue','activities','method','category','sub2','sub3','remarks','methodCustom','categoryCustom','subCustom']
+    .some(k => String(draft[k] || '').trim() !== '');
+  if (!hasInput) { localStorage.removeItem('cf_draft'); return; }
   localStorage.setItem('cf_draft', JSON.stringify(draft));
 }
 
@@ -1119,13 +1129,10 @@ function restoreFormDraft() {
     }
   }
 
-  const subSel = document.getElementById('f-sub');
-  if (draft.sub) {
-    subSel.value = draft.sub;
-    if (draft.sub === '__other__') {
-      document.getElementById('f-sub-custom').value = draft.subCustom || '';
-      document.getElementById('f-sub-custom').classList.add('visible');
-    }
+  if (draft.sub) document.getElementById('f-sub').value = draft.sub;
+  if (draft.sub === '__other__' || draft.category === '__other__') {
+    document.getElementById('f-sub-custom').value = draft.subCustom || '';
+    document.getElementById('f-sub-custom').classList.add('visible');
   }
 
   document.getElementById('f-cost').value = draft.cost || '';
@@ -1148,7 +1155,7 @@ function renderHistory() {
   const el = document.getElementById('history-section');
   if (history.length === 0) { el.innerHTML = ''; return; }
   el.innerHTML = `<div class="history-label">Recent entries</div>` + history.slice(0, 5).map(h => `
-    <div class="history-item sheet-${h.sheet}"><div class="hi-left"><div class="hi-venue">${escHtml(h.venue)}</div><div class="hi-meta">${h.date} · ${h.sheet}${h.category ? ' · ' + escHtml(h.category) : ''}</div></div><div class="hi-amount">$${Number(h.cost).toFixed(2)}</div></div>
+    <div class="history-item sheet-${h.sheet}"><div class="hi-left"><div class="hi-venue">${escHtml(h.venue)}</div><div class="hi-meta">${h.date} · ${h.sheet}${h.category ? ' · ' + escHtml(h.category) : ''}</div></div><div class="hi-amount">${Number(h.cost) < 0 ? '−' : ''}$${fmtMoney(Number(h.cost))}</div></div>
   `).join('');
 }
 
@@ -1183,7 +1190,7 @@ function saveConfig() {
 
 function renderFavManager() {
   document.getElementById('fav-manager').innerHTML = favorites.map((f, i) => `
-    <div class="fav-manager-item"><div style="flex:1"><div class="fav-manager-label">${escHtml(f.label)}</div><div class="fav-manager-detail">${escHtml(f.sheet)} · ${escHtml(f.method)} · $${f.cost.toFixed(2)}</div></div>
+    <div class="fav-manager-item"><div style="flex:1"><div class="fav-manager-label">${escHtml(f.label)}</div><div class="fav-manager-detail">${escHtml(f.sheet)} · ${escHtml(f.method)} · ${f.cost < 0 ? '−' : ''}$${fmtMoney(f.cost)}</div></div>
     <button class="fav-manager-edit" onclick="editFav(${i})">edit</button><button class="cat-delete" onclick="deleteFav(${i})">✕</button></div>
   `).join('');
 }
@@ -1273,9 +1280,10 @@ async function getLastRowMapped(sheetKey) {
 }
 
 async function loadBalances() {
-  if (!accessToken) return;
-  const section = document.getElementById('balance-section');
-  section.style.display = '';
+  if (!accessToken) {
+    document.getElementById('balance-main').innerHTML = '<div class="bal-loading">Sign in to view balances</div>';
+    return;
+  }
   document.getElementById('balance-main').innerHTML = '<div class="bal-loading">Loading…</div>';
 
   try {
@@ -1291,6 +1299,8 @@ async function loadBalances() {
     document.getElementById('balance-main').innerHTML = '<div class="bal-loading">Failed to load</div>';
   }
 }
+
+const BAL_SKIP_COLS = new Set(['date','venue','activities','method','category','sub','sub2','sub3','cost','remarks','inputted','uploaded','total']);
 
 function renderBalances() {
   if (!balanceCache) return;
@@ -1315,9 +1325,8 @@ function renderBalances() {
     const row = balanceCache[sheet];
     if (!row) return;
     const mainCols = MAIN_BALANCES.filter(b => b.sheet === sheet).map(b => b.col);
-    const skipCols = ['Date','Venue','Activities','Method','Category','Sub','Sub2','Sub3','Cost','Remarks','Inputted','Uploaded','Total'];
     Object.entries(row).forEach(([col, val]) => {
-      if (mainCols.includes(col) || skipCols.map(s => s.toLowerCase()).includes(col.toLowerCase())) return;
+      if (mainCols.includes(col) || BAL_SKIP_COLS.has(col.toLowerCase())) return;
       if (typeof val === 'number' || (typeof val === 'string' && !isNaN(parseFloat(val)) && val.trim() !== '')) {
         otherCards.push(renderBalCard(col, val));
       }
@@ -1328,7 +1337,7 @@ function renderBalances() {
 
 function renderBalCard(label, val) {
   const num = typeof val === 'number' ? val : parseFloat(val);
-  const display = isNaN(num) ? '—' : '$' + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const display = isNaN(num) ? '—' : '$' + fmtMoney(num);
   const cls = isNaN(num) ? 'zero' : (num > 0 ? 'positive' : (num < 0 ? 'negative' : 'zero'));
   const sign = isNaN(num) ? '' : (num < 0 ? '−' : '');
   return `<div class="bal-card"><div class="bal-label">${escHtml(label)}</div><div class="bal-value ${cls}">${sign}${display}</div></div>`;
