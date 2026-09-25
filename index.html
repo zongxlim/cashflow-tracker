@@ -138,7 +138,7 @@
   .toast {
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px);
     background: var(--surface); border: 1px solid var(--border-bright); border-radius: 10px;
-    padding: 14px 20px; font-family: var(--mono); font-size: 13px; z-index: 100;
+    padding: 14px 20px; font-family: var(--mono); font-size: 13px; z-index: 300;
     transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     max-width: calc(100vw - 48px); display: flex; align-items: center; gap: 10px; word-break: break-word;
   }
@@ -182,6 +182,27 @@
   .config-field input { width: 100%; }
   .config-save { width: 100%; padding: 14px; background: var(--accent); border: none; border-radius: 10px; color: #fff; font-family: var(--sans); font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; }
 
+  .cash-tools { display: flex; gap: 8px; padding: 0 24px 16px; }
+  .tool-btn {
+    flex: 1; padding: 10px 0; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted);
+    font-family: var(--mono); font-size: 12px; border-radius: 8px; cursor: pointer; letter-spacing: 0.03em;
+  }
+  .tool-btn:active { transform: scale(0.98); }
+  .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .month-nav button { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 8px; width: 40px; height: 34px; font-size: 16px; cursor: pointer; }
+  .month-nav span { font-family: var(--mono); font-size: 14px; }
+  .monthly-totals { font-family: var(--mono); font-size: 11px; color: var(--text-muted); line-height: 1.7; margin-bottom: 16px; }
+  .m-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
+  .m-item.done { opacity: 0.55; }
+  .m-item.open { border-color: var(--accent); opacity: 1; }
+  .m-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; }
+  .m-head .m-title { flex: 1; font-size: 13px; font-weight: 500; }
+  .m-head .m-meta { font-family: var(--mono); font-size: 10px; color: var(--text-muted); text-align: right; }
+  .m-check { width: 18px; font-family: var(--mono); color: var(--success); }
+  .m-body { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .m-body .field-row { gap: 10px; }
+  .m-rows { font-family: var(--mono); font-size: 10px; color: var(--text-muted); line-height: 1.6; }
+  .m-undo { background: none; border: none; color: var(--text-muted); font-family: var(--mono); font-size: 11px; text-decoration: underline; cursor: pointer; align-self: flex-start; padding: 0; }
   .btn-toggle {
     width: 100%; padding: 12px; border-radius: 10px; font-family: var(--mono); font-size: 13px;
     font-weight: 600; cursor: pointer; letter-spacing: 0.03em; border: 1px solid var(--border);
@@ -288,6 +309,11 @@
 
   <!-- Form -->
   <div id="form-wrapper">
+  <div class="cash-tools" id="cash-tools" style="display:none;">
+    <button class="tool-btn" onclick="openMonthly()">📅 Monthly</button>
+    <button class="tool-btn" onclick="openTransfer()">⇄ Transfer</button>
+  </div>
+
   <div class="fav-section" id="fav-section" style="display:none;">
     <div class="more-toggle" id="fav-toggle" onclick="toggleFavs()"><span class="arrow">▶</span> Quick add</div>
     <div class="fav-chips-wrap" id="fav-chips-wrap" style="display:none;">
@@ -345,7 +371,7 @@
 </div>
 
 <button class="config-toggle" style="right:185px;" onclick="resetForm()">✕ reset</button>
-<button class="config-toggle" style="right:100px;" onclick="window.location.href=window.location.pathname+'?v='+Date.now()">↻ update</button>
+<button class="config-toggle" style="right:100px;" onclick="safeUpdate()">↻ update</button>
 <button class="config-toggle" onclick="openConfig()">⚙ setup</button>
 
 <div class="config-panel" id="config-panel">
@@ -428,6 +454,35 @@
   <button class="btn-sync-all" id="btn-sync-all" onclick="syncQueue()">Sync all</button>
 </div>
 
+<div class="config-panel" id="monthly-panel">
+  <button class="config-close" onclick="closePanel('monthly-panel')">✕ close</button>
+  <h2>Monthly</h2>
+  <p class="desc" style="margin-bottom:14px;">Enter each item when you have the info. Amounts are typed as positive; signs are applied for you.</p>
+  <div class="month-nav"><button onclick="shiftMonth(-1)">‹</button><span id="month-label"></span><button onclick="shiftMonth(1)">›</button></div>
+  <div class="monthly-totals" id="monthly-totals"></div>
+  <div id="monthly-list"></div>
+</div>
+
+<div class="config-panel" id="transfer-panel">
+  <button class="config-close" onclick="closePanel('transfer-panel')">✕ close</button>
+  <h2>Transfer</h2>
+  <p class="desc" style="margin-bottom:14px;">Moves money between Cash accounts and writes both rows.</p>
+  <div class="form-body" style="padding:0;">
+    <div class="field-row">
+      <div class="field"><label>From</label><select id="t-from" onchange="updateTransferPreview()"></select></div>
+      <div class="field"><label>To</label><select id="t-to" onchange="updateTransferPreview()"></select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Amount</label><input type="text" id="t-amount" inputmode="decimal" placeholder="0.00" onblur="formatMoneyInput(this); updateTransferPreview()"></div>
+      <div class="field"><label>Date</label><input type="date" id="t-date"></div>
+    </div>
+    <div class="field" id="t-cash-venue-wrap" style="display:none;"><label>Cash venue</label><input type="text" id="t-cash-venue" placeholder="Who / where" autocapitalize="words" oninput="updateTransferPreview()"></div>
+    <div class="field"><label>Remarks</label><input type="text" id="t-remarks" placeholder="Optional"></div>
+    <div class="m-rows" id="t-preview"></div>
+    <button class="btn-sync-all" id="btn-transfer" onclick="commitTransfer()">Add transfer</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -435,8 +490,8 @@
 
 const SHEETS = {
   Cash: {
-    methods: ['Checking','SavingsCO','Cash','Venmo','Savings','CheckingCO','SavingsF','COne Savings','Optum','Fidelity','PB (MYR)'],
-    methodToColumn: { 'Checking':'Checking','Savings':'Savings','CheckingCO':'CheckingCO','SavingsCO':'SavingsCO','SavingsF':'SavingsF','COne Savings':'COne Savings','Optum':'Optum','Fidelity':'Fidelity','PB (MYR)':'PB (MYR)','Cash':'Cash','Venmo':'Venmo' }
+    methods: ['Checking','SavingsCO','Cash','Venmo','Savings','CheckingCO','SavingsF','Optum','Fidelity','PB (MYR)'],
+    methodToColumn: { 'Checking':'Checking','Savings':'Savings','CheckingCO':'CheckingCO','SavingsCO':'SavingsCO','SavingsF':'SavingsF','Optum':'Optum','Fidelity':'Fidelity','PB (MYR)':'PB (MYR)','Cash':'Cash','Venmo':'Venmo' }
   },
   Credit: {
     methods: ['Discover','WF','Chase','Savor1'],
@@ -456,10 +511,10 @@ const CAT_SUB_DEFAULT = {
 
 const FAVORITES_DEFAULT = [
   { label:'iCloud+', sheet:'Credit', venue:'Apple', activities:'iCloud+', method:'WF', category:'Want', sub:'Service', cost:2.99, remarks:'11th' },
-  { label:'Claude Pro', sheet:'Credit', venue:'Anthropic', activities:'Claude Pro', method:'WF', category:'Want', sub:'Service', cost:20.00, remarks:'25th' },
   { label:'State Farm', sheet:'Credit', venue:'State Farm', activities:"Renter's insurance", method:'WF', category:'Need', sub:'Insurance', cost:13.09, remarks:'15th' },
   { label:'Franz Fahrenheit', sheet:'Credit', venue:'Apple', activities:'Franz Fahrenheit (monthly)', method:'WF', category:'Want', sub:'Service', cost:1.08, remarks:'17th' },
   { label:'Spotify', sheet:'Credit', venue:'Spotify', activities:'Monthly sub', method:'Savor1', category:'Want', sub:'Music', cost:14.16, remarks:'25th' },
+  { label:'Claude Pro', sheet:'Credit', venue:'Anthropic', activities:'Claude Pro', method:'WF', category:'Want', sub:'Service', cost:20.00, remarks:'25th' },
   { label:'Haircut', sheet:'Credit', venue:'James Irving Grooming', activities:'Haircut', method:'WF', category:'Hair', sub:'Haircut', cost:72.00, remarks:'' },
   { label:'Sencha', sheet:'Credit', venue:'Harney & Sons', activities:'Japanese Sencha (1lb Loose Leaf) (60-day sub)', method:'WF', category:'F&D', sub:'Caffeine', cost:43.79, remarks:'' },
   { label:'Cocofloss', sheet:'Credit', venue:'Cocofloss', activities:'32-yard floss (3-month sub)', method:'WF', category:'Need', sub:'', cost:9.73, remarks:'' },
@@ -489,18 +544,19 @@ function loadFavorites() {
   let deleted = [];
   try { deleted = JSON.parse(localStorage.getItem('cf_fav_deleted') || '[]'); } catch (e) {}
   const skip = new Set([...stored.map(f => f.label), ...deleted]);
-  FAVORITES_DEFAULT.forEach((d, i) => {
-    if (skip.has(d.label)) return;
-    // Insert before the next default that already exists in the saved list (keeps intended order)
-    const nextLabels = FAVORITES_DEFAULT.slice(i + 1).map(f => f.label);
-    const pos = stored.findIndex(f => nextLabels.includes(f.label));
-    stored.splice(pos === -1 ? stored.length : pos, 0, clone(d));
-  });
-  return stored;
+  FAVORITES_DEFAULT.forEach(d => { if (!skip.has(d.label)) stored.push(clone(d)); });
+  // Code order wins; favorites not in the code (e.g. renamed) stay at the end in their saved order
+  const order = new Map(FAVORITES_DEFAULT.map((f, i) => [f.label, i]));
+  return stored.sort((a, b) => (order.has(a.label) ? order.get(a.label) : 1e9) - (order.has(b.label) ? order.get(b.label) : 1e9));
 }
 let currentSheet = 'Cash';
 let history = JSON.parse(localStorage.getItem('cf_history') || '[]');
 let queue = JSON.parse(localStorage.getItem('cf_queue') || '[]');
+// An item still marked "sending" means the app closed mid-request: it may or may not be in Excel
+if (queue.some(i => i.sending)) {
+  queue.forEach(i => { if (i.sending) { delete i.sending; i.uncertain = true; } });
+  localStorage.setItem('cf_queue', JSON.stringify(queue));
+}
 let queueMode = localStorage.getItem('cf_queue_mode') !== '0'; // default ON
 let activeFav = null;
 let columnCache = {};
@@ -515,6 +571,28 @@ const MAIN_BALANCES = [
 ];
 
 function saveCatSub() { localStorage.setItem('cf_cat_sub', JSON.stringify(catSub)); }
+
+function nowStamp() {
+  return new Date().toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true, timeZoneName:'short' });
+}
+
+function round2(n) { return Math.round(n * 100) / 100; }
+
+// Typing without a dot means cents: 1234 → 12.34. With a dot it's taken as-is.
+function parseMoneyInput(str) {
+  const raw = String(str || '').trim().replace(/,/g, '');
+  if (!raw) return NaN;
+  if (!raw.includes('.')) {
+    const digits = raw.replace(/[^0-9]/g, '');
+    return digits ? parseInt(digits, 10) / 100 : NaN;
+  }
+  return parseFloat(raw);
+}
+
+function formatMoneyInput(el) {
+  const n = parseMoneyInput(el.value);
+  if (!isNaN(n)) el.value = fmtMoney(n);
+}
 
 function fmtMoney(n) {
   return Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -569,6 +647,7 @@ async function silentLogin(account) {
 }
 
 async function login(saveDraft = true) {
+  if (busySending()) return showToast('Wait for sync to finish', 'error');
   const clientId = localStorage.getItem('cf_client_id');
   if (!clientId) { showToast('Set Client ID in ⚙ setup first', 'error'); return; }
   if (!msalInstance) initMsal();
@@ -578,6 +657,7 @@ async function login(saveDraft = true) {
 }
 
 async function logout() {
+  if (busySending()) return showToast('Wait for sync to finish', 'error');
   if (!msalInstance) return;
   msalInstance.logoutRedirect();
 }
@@ -586,6 +666,7 @@ async function getToken() {
   if (!msalInstance) { showToast('Set Client ID and sign in first', 'error'); return null; }
   const accounts = msalInstance.getAllAccounts();
   if (accounts.length === 0) {
+    if (busySending()) { authBlocked = true; return null; } // don't leave mid-sync
     login();
     return null; // redirect will navigate away
   }
@@ -594,6 +675,7 @@ async function getToken() {
     accessToken = res.accessToken;
     return accessToken;
   } catch (e) {
+    if (busySending()) { authBlocked = true; return null; } // don't leave mid-sync
     // Silent failed, redirect to login (preserve any unsaved input first)
     saveFormDraft();
     msalInstance.acquireTokenRedirect({ scopes: ['Files.ReadWrite'] });
@@ -648,7 +730,7 @@ async function getTableColumns(tableName) {
   return cols;
 }
 
-async function addRowToExcel(sheetKey, payload) {
+async function addRowToExcel(sheetKey, payload, onBeforeSend) {
   const token = await getToken();
   if (!token) return false;
 
@@ -664,7 +746,7 @@ async function addRowToExcel(sheetKey, payload) {
   if (!cols) return false;
 
   // Map payload fields to column names (case-insensitive)
-  const uploaded = new Date().toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true, timeZoneName:'short' });
+  const uploaded = nowStamp();
   const fieldMap = {};
   const payloadMap = {
     'date': payload.date, 'venue': payload.venue, 'activities': payload.activities,
@@ -680,13 +762,20 @@ async function addRowToExcel(sheetKey, payload) {
   });
 
   const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodedPath}:/workbook/tables/${encodeURIComponent(tableName)}/rows/add`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values: [values] })
-  });
+  let res;
+  if (onBeforeSend) onBeforeSend();
+  writesInFlight++;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: [values] })
+    });
+  } finally {
+    writesInFlight--;
+  }
 
-  if (res.ok || res.status === 201) return true;
+  if (res.ok) return true;
   const err = await res.json().catch(() => ({}));
   showToast(`Write error: ${err?.error?.message || res.status}`, 'error');
   return false;
@@ -722,17 +811,7 @@ function toggleCostSign() {
 }
 
 function formatCost() {
-  const input = document.getElementById('f-cost');
-  let raw = input.value.trim().replace(/,/g, '');
-  if (!raw) return;
-  if (!raw.includes('.')) {
-    const digits = raw.replace(/[^0-9]/g, '');
-    if (!digits) return;
-    raw = (parseInt(digits, 10) / 100).toFixed(2);
-  }
-  const num = parseFloat(raw);
-  if (isNaN(num)) return;
-  input.value = fmtMoney(num);
+  formatMoneyInput(document.getElementById('f-cost'));
 }
 
 function toggleMore() {
@@ -764,6 +843,7 @@ function switchSheet(sheet) {
   formWrapper.style.display = '';
   balSection.style.display = 'none';
   currentSheet = sheet; activeFav = null;
+  document.getElementById('cash-tools').style.display = sheet === 'Cash' ? '' : 'none';
   const btn = document.getElementById('btn-submit');
   btn.dataset.sheet = sheet;
   btn.querySelector('.btn-text').textContent = `Add to ${sheet}`;
@@ -921,8 +1001,9 @@ function renderQueueReview() {
     syncBtn.textContent = 'Sync all';
     return;
   }
-  syncBtn.disabled = false;
-  syncBtn.textContent = `Sync all (${queue.length})`;
+  const sendable = queue.filter(i => !i.uncertain).length;
+  syncBtn.disabled = sendable === 0;
+  syncBtn.textContent = `Sync all (${sendable})`;
   el.innerHTML = queue.map((item, i) => {
     const p = item.payload;
     const num = typeof p.cost === 'number' ? p.cost : parseFloat(p.cost);
@@ -932,8 +1013,10 @@ function renderQueueReview() {
       <div class="qi-left">
         <div class="qi-venue">${escHtml(p.venue || '—')}</div>
         <div class="qi-meta">${escHtml(p.date)} · ${escHtml(item.sheet)}${p.category ? ' · ' + escHtml(p.category) : ''}</div>
+        ${item.uncertain ? '<div class="qi-meta" style="color:#fb923c;">⚠ Sync was interrupted — may already be in Excel. Check, then ✕ or send.</div>' : ''}
       </div>
       <div class="qi-amount">${sign}${display}</div>
+      ${item.uncertain ? `<button class="qi-delete" style="color:var(--accent);" onclick="confirmQueueItem(${i})" title="Not in Excel — send it">send</button>` : ''}
       <button class="qi-delete" onclick="deleteQueueItem(${i})" title="Delete">✕</button>
     </div>`;
   }).join('');
@@ -947,38 +1030,94 @@ function deleteQueueItem(idx) {
 }
 
 let isSyncing = false;
+let writesInFlight = 0;
+let authBlocked = false;
+
+function busySending() { return isSyncing || writesInFlight > 0; }
+
+function safeUpdate() {
+  if (busySending()) return showToast('Sending to Excel — wait until it finishes', 'error');
+  window.location.href = window.location.pathname + '?v=' + Date.now();
+}
+
+window.addEventListener('beforeunload', e => {
+  if (busySending()) { e.preventDefault(); e.returnValue = ''; }
+});
+
+function confirmQueueItem(idx) {
+  if (!confirm('Only do this if you checked Excel and this row is NOT there. Send it on the next sync?')) return;
+  delete queue[idx].uncertain;
+  saveQueue();
+  renderQueueReview();
+}
 
 async function syncQueue() {
   if (isSyncing) return;
-  if (queue.length === 0) return;
+  const pending = queue.filter(i => !i.uncertain);
+  if (pending.length === 0) {
+    if (queue.length) showToast('Review the ⚠ items in pending first', 'error');
+    return;
+  }
   if (!navigator.onLine) { showToast('Still offline — will sync when connected', 'error'); return; }
+  if (!msalInstance || msalInstance.getAllAccounts().length === 0) { showToast('Sign in first, then sync', 'error'); return; }
   isSyncing = true;
+  authBlocked = false;
   const badge = document.getElementById('pending-badge');
   badge.classList.add('syncing');
   const syncBadge = document.getElementById('sync-badge');
   syncBadge.classList.add('syncing'); syncBadge.textContent = 'syncing…';
   const syncBtn = document.getElementById('btn-sync-all');
   if (syncBtn) { syncBtn.disabled = true; syncBtn.textContent = 'Syncing…'; }
-  showToast(`Syncing ${queue.length} transaction${queue.length > 1 ? 's' : ''}…`, 'success');
-  const failed = [];
-  for (const item of queue) {
-    try {
-      const ok = await addRowToExcel(item.sheet, item.payload);
-      if (!ok) failed.push(item);
-    } catch (e) { failed.push(item); }
+  showToast(`Syncing ${pending.length} transaction${pending.length > 1 ? 's' : ''}…`, 'success');
+  let failedCount = 0;
+  for (const item of pending) {
+    let ok = false;
+    // "sending" is saved just before the request: if the app closes mid-request, this item gets flagged for review
+    try { ok = await addRowToExcel(item.sheet, item.payload, () => { item.sending = true; saveQueue(); }); } catch (e) { ok = false; }
+    delete item.sending;
+    if (ok) { const idx = queue.indexOf(item); if (idx !== -1) queue.splice(idx, 1); }
+    else failedCount++;
+    saveQueue(); // confirmed rows leave the queue immediately, so an interruption can't resend them
+    if (authBlocked) break; // signed out / session expired: stop, nothing else can go through
   }
-  queue = failed; saveQueue();
   badge.classList.remove('syncing');
   syncBadge.classList.remove('syncing'); syncBadge.textContent = '⇪ sync';
   isSyncing = false;
   renderQueueReview();
   if (balanceCache) loadBalances();
-  showToast(failed.length === 0 ? '✓ All synced' : `${failed.length} failed — tap to retry`, failed.length === 0 ? 'success' : 'error');
+  if (authBlocked) showToast('Sign-in expired — sign in, then sync again', 'error');
+  else showToast(failedCount === 0 ? '✓ All synced' : `${failedCount} failed — tap to retry`, failedCount === 0 ? 'success' : 'error');
 }
 
 window.addEventListener('online', () => { if (queue.length > 0 && !queueMode) { showToast('Back online — syncing…', 'success'); setTimeout(syncQueue, 1000); } });
 
 // ── Submit ────────────────────────────────────────────────────────────────────
+
+// Sends rows to Excel, or queues them (offline / signed out / queue mode).
+// Returns true once every row is written or safely queued.
+async function commitRows(rows, label) {
+  const signedIn = !!msalInstance && msalInstance.getAllAccounts().length > 0;
+  if (!navigator.onLine || !signedIn || queueMode) {
+    rows.forEach(r => queue.push(r)); saveQueue();
+    const why = !navigator.onLine ? 'offline, will sync later' : !signedIn ? 'sign in to sync' : `${queue.length} pending`;
+    showToast(`✓ Queued — ${why}`, 'success');
+    return true;
+  }
+  for (let i = 0; i < rows.length; i++) {
+    let ok = false;
+    try { ok = await addRowToExcel(rows[i].sheet, rows[i].payload); } catch (e) { ok = false; }
+    if (!ok) {
+      if (i === 0) { showToast('Failed to add — check connection and try again', 'error'); return false; }
+      // Earlier rows are confirmed written; queue the rest so the group stays complete
+      rows.slice(i).forEach(r => queue.push(r)); saveQueue();
+      showToast(`✓ ${i} added, ${rows.length - i} queued`, 'success');
+      return true;
+    }
+  }
+  showToast(`✓ Added ${label}`, 'success');
+  if (balanceCache) setTimeout(loadBalances, 1000);
+  return true;
+}
 
 async function submitTransaction() {
   formatCost();
@@ -1000,83 +1139,23 @@ async function submitTransaction() {
   if (!date) return showToast('Date is required', 'error');
   if (isNaN(rawCost)) return showToast('Enter a valid cost', 'error');
 
-  const now = new Date();
-  const inputted = now.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true, timeZoneName:'short' });
-  const payload = { date, venue, activities, method, category, sub, sub2, sub3, cost, remarks, inputted };
+  const inputted = nowStamp();
+  const rows = [{ sheet: currentSheet, payload: { date, venue, activities, method, category, sub, sub2, sub3, cost, remarks, inputted } }];
+  const fav = activeFav !== null ? favorites[activeFav] : null;
+  if (fav && fav.linked) {
+    const l = fav.linked;
+    rows.push({ sheet: l.sheet, payload: { date, venue: l.venue, activities: l.activities, method: l.method, category: l.category, sub: l.sub, sub2: '', sub3: '', cost: Math.abs(cost), remarks, inputted } });
+  }
+
   const btn = document.getElementById('btn-submit');
   btn.disabled = true; btn.classList.add('loading');
-
-  function queueLocally(toastMsg) {
-    queue.push({ sheet: currentSheet, payload });
-    const fav = activeFav !== null ? favorites[activeFav] : null;
-    if (fav && fav.linked) {
-      const linkedPayload = { date, venue: fav.linked.venue, activities: fav.linked.activities, method: fav.linked.method, category: fav.linked.category, sub: fav.linked.sub, sub2: '', sub3: '', cost: Math.abs(cost), remarks, inputted };
-      queue.push({ sheet: fav.linked.sheet, payload: linkedPayload });
-    }
-    saveQueue();
-    addHistory(venue, cost, category);
-    showToast(toastMsg || `✓ Queued (${queue.length} pending)`, 'success');
-  }
-
-  if (!navigator.onLine) {
-    queueLocally('Queued offline — will sync later');
-    resetForm(); btn.disabled = false; btn.classList.remove('loading'); return;
-  }
-
-  // If not signed in, queue first then trigger login (redirect navigates away)
-  if (!msalInstance || msalInstance.getAllAccounts().length === 0) {
-    queueLocally('Queued — sign in to sync');
-    resetForm(); btn.disabled = false; btn.classList.remove('loading');
-    login(false); // already queued, skip draft save
-    return;
-  }
-
-  // Queue mode: save locally instantly, sync later in a batch
-  if (queueMode) {
-    queueLocally();
-    resetForm(); btn.disabled = false; btn.classList.remove('loading'); return;
-  }
-
-  let ok = false;
-  try {
-    ok = await addRowToExcel(currentSheet, payload);
-  } catch (e) {
-    showToast('Network error — check connection and try again', 'error');
-    btn.disabled = false; btn.classList.remove('loading');
-    return;
-  }
-  if (ok) {
-    // Handle linked transaction (e.g. Pay favorites create Cash-side row too)
-    const fav = activeFav !== null ? favorites[activeFav] : null;
-    if (fav && fav.linked) {
-      const linkedNow = new Date();
-      const linkedInputted = linkedNow.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true, timeZoneName:'short' });
-      const linkedPayload = {
-        date, venue: fav.linked.venue, activities: fav.linked.activities,
-        method: fav.linked.method, category: fav.linked.category, sub: fav.linked.sub,
-        sub2: '', sub3: '', cost: Math.abs(cost), remarks, inputted: linkedInputted
-      };
-      const linkedOk = await addRowToExcel(fav.linked.sheet, linkedPayload);
-      if (linkedOk) {
-        showToast(`✓ Added to ${currentSheet} + ${fav.linked.sheet}`, 'success');
-      } else {
-        queue.push({ sheet: fav.linked.sheet, payload: linkedPayload }); saveQueue();
-        showToast(`✓ ${currentSheet} ok, ${fav.linked.sheet} queued`, 'success');
-      }
-    } else {
-      showToast(`✓ Added to ${currentSheet}`, 'success');
-    }
-    addHistory(venue, cost, category);
-    resetForm();
-    if (balanceCache) setTimeout(loadBalances, 1000);
-  } else {
-    showToast('Failed to add — check connection and try again', 'error');
-  }
+  const done = await commitRows(rows, rows.length > 1 ? `to ${currentSheet} + ${fav.linked.sheet}` : `to ${currentSheet}`);
+  if (done) { addHistory(venue, cost, category); resetForm(); }
   btn.disabled = false; btn.classList.remove('loading');
 }
 
-function addHistory(venue, cost, category) {
-  const entry = { sheet: currentSheet, date: document.getElementById('f-date').value, venue: venue || '—', cost, category, ts: Date.now() };
+function addHistory(venue, cost, category, sheet = currentSheet, date = document.getElementById('f-date').value) {
+  const entry = { sheet, date, venue: venue || '—', cost, category, ts: Date.now() };
   history.unshift(entry); if (history.length > 20) history = history.slice(0, 20);
   localStorage.setItem('cf_history', JSON.stringify(history)); renderHistory();
 }
@@ -1203,6 +1282,7 @@ function openConfig() {
 function closeConfig() { document.getElementById('config-panel').classList.remove('open'); }
 
 function saveConfig() {
+  if (busySending()) return showToast('Wait for sync to finish', 'error');
   const clientId = document.getElementById('cfg-client-id').value.trim();
   const filePath = document.getElementById('cfg-file-path').value.trim();
   const cashTable = document.getElementById('cfg-cash-table').value.trim();
@@ -1235,7 +1315,9 @@ function editFav(i) {
   const category = prompt('Category:', f.category); if (category === null) return;
   const sub = prompt('Sub:', f.sub); if (sub === null) return;
   const costStr = prompt('Cost (0 for variable):', f.cost); if (costStr === null) return;
-  const sheet = prompt('Sheet (Cash/Credit):', f.sheet); if (sheet === null) return;
+  const sheetIn = prompt('Sheet (Cash/Credit):', f.sheet); if (sheetIn === null) return;
+  const sheet = Object.keys(SHEETS).find(s => s.toLowerCase() === sheetIn.trim().toLowerCase());
+  if (!sheet) return showToast('Sheet must be Cash or Credit — not saved', 'error');
   favorites[i] = { ...f, label, venue, activities, method, category, sub, cost: parseFloat(costStr) || 0, sheet };
   saveFavorites(); renderFavManager(); renderFavChips(); showToast(`"${label}" updated`, 'success');
 }
@@ -1265,7 +1347,7 @@ function renderCatManager() {
 }
 
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function escAttr(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function escAttr(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 function escId(s) { return String(s).replace(/[^a-zA-Z0-9]/g, '_'); }
 
 function toggleCat(cat) { expandedCat = expandedCat === cat ? null : cat; renderCatManager(); if (expandedCat) { const i = document.getElementById(`sub-input-${escId(cat)}`); if (i) setTimeout(() => i.focus(), 50); } }
@@ -1314,7 +1396,7 @@ async function getLastRowMapped(sheetKey) {
 }
 
 async function loadBalances() {
-  if (!accessToken) {
+  if (!msalInstance || msalInstance.getAllAccounts().length === 0) {
     document.getElementById('balance-main').innerHTML = '<div class="bal-loading">Sign in to view balances</div>';
     return;
   }
@@ -1334,7 +1416,9 @@ async function loadBalances() {
   }
 }
 
-const BAL_SKIP_COLS = new Set(['date','venue','activities','method','category','sub','sub2','sub3','cost','remarks','inputted','uploaded','total']);
+// Old columns that stay in Excel but shouldn't show as balances
+const BAL_HIDE = { Credit: new Set(['venmo']) };
+const BAL_SKIP_COLS = new Set(['date','venue','activities','method','category','sub','sub2','sub3','cost','cost (myr)','remarks','inputted','uploaded','total']);
 
 function renderBalances() {
   if (!balanceCache) return;
@@ -1360,9 +1444,9 @@ function renderBalances() {
     if (!row) return;
     const mainCols = MAIN_BALANCES.filter(b => b.sheet === sheet).map(b => b.col);
     Object.entries(row).forEach(([col, val]) => {
-      if (mainCols.includes(col) || BAL_SKIP_COLS.has(col.toLowerCase())) return;
+      if (mainCols.includes(col) || BAL_SKIP_COLS.has(col.toLowerCase()) || BAL_HIDE[sheet]?.has(col.toLowerCase())) return;
       if (typeof val === 'number' || (typeof val === 'string' && !isNaN(parseFloat(val)) && val.trim() !== '')) {
-        otherCards.push(renderBalCard(col, val));
+        otherCards.push(renderBalCard(sheet === 'Credit' ? `${col} (Credit)` : col, val));
       }
     });
   });
@@ -1392,6 +1476,238 @@ async function getColumnBalance(sheetKey, colName) {
   balanceCache[sheetKey] = row;
   balanceTs = Date.now();
   return row[colName];
+}
+
+// ── Monthly (Cash) ───────────────────────────────────────────────────────────
+// Change fixed amounts here (rent, parking, family savings, defaults below).
+
+const RENT = 1495, PARKING = 185, FAMILY_SAVINGS = 500;
+
+function mRow(venue, activities, method, category, sub, cost, remarks = '') {
+  return { venue, activities, method, category, sub, sub2: '', sub3: '', cost: round2(cost), remarks };
+}
+
+// due: today | d22 (22nd) | eom (last day) | next1 / next2 (1st / 2nd of next month)
+const MONTHLY_ITEMS = [
+  { key: 'gas',         label: 'CenterPoint gas',          due: 'today', rows: A => [mRow('CenterPoint Energy', 'Gas Bill (no autopay)', 'Checking', 'Utilities', 'Gas', A)] },
+  { key: 'internet',    label: 'Quantum Fiber',            due: 'd22',   def: 30,      rows: A => [mRow('Quantum Fiber', 'Monthly Internet (Up to 200 Mbps)', 'Checking', 'Utilities', 'Wifi', A)] },
+  { key: 'electric',    label: 'Xcel electric',            due: 'eom',   rows: A => [mRow('Xcel Energy', 'Electric Bill', 'Checking', 'Utilities', 'Electric', A)] },
+  { key: 'hsaEmployer', label: 'Carleton HSA contribution', due: 'eom',  def: 100,     rows: A => [mRow('Carleton', 'Carleton contribution', 'Optum', '', '', -A)] },
+  { key: 'hsaMine',     label: 'My HSA contribution',      due: 'eom',   def: 266.66,  rows: A => [mRow('Carleton', 'My contribution', 'Optum', 'HSA', '', -A)] },
+  { key: 'interest',    label: 'Optum interest',           due: 'eom',   rows: A => [mRow('Carleton', 'Interest', 'Optum', '', '', -A)] },
+  { key: 'pay',         label: 'Pay',                      due: 'eom',   def: 5689.33, rows: A => [mRow('Carleton', 'Pay', 'Checking', 'Pay', '', -A)] },
+  { key: 'weidner',     label: 'Weidner (bill total)',     due: 'next1', min: RENT + PARKING, rows: null },
+  { key: 'phone',       label: 'Auntie Theresa (phone)',   due: 'next1', def: 32,      rows: A => [mRow('Auntie Theresa', 'Phone bill (monthly Zelle)', 'Checking', 'Need', 'Phone', A)] },
+  { key: 'savings',     label: 'Savings (total)',          due: 'next2', min: FAMILY_SAVINGS, rows: A => [
+      mRow('Capital One', 'Savings', 'Checking', 'Savings', '', A),
+      mRow('Capital One', 'Savings (Family)', 'SavingsF', '', '', -FAMILY_SAVINGS),
+      mRow('Capital One', 'Savings (Discretionary)', 'SavingsCO', '', '', -(A - FAMILY_SAVINGS))] },
+  { key: 'fidelity',    label: 'Fidelity',                 due: 'next2', def: 650,     rows: A => [
+      mRow('Wells Fargo', 'Fidelity', 'Checking', 'Savings', '', A),
+      mRow('Fidelity', 'Fidelity', 'Fidelity', '', '', -A)] },
+];
+
+let monthly = {};
+try { monthly = JSON.parse(localStorage.getItem('cf_monthly') || '{}') || {}; } catch (e) { monthly = {}; }
+let viewMonth = null;
+let expandedMonthly = null;
+let monthlyBusy = false;
+
+function saveMonthly() { localStorage.setItem('cf_monthly', JSON.stringify(monthly)); }
+function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
+function defaultMonthKey() {
+  const t = new Date();
+  return monthKey(t.getDate() <= 5 ? new Date(t.getFullYear(), t.getMonth() - 1, 1) : t);
+}
+function monthDueDate(key, due) {
+  const [y, m] = key.split('-').map(Number);
+  if (due === 'eom')   return localDateStr(new Date(y, m, 0));
+  if (due === 'd22')   return localDateStr(new Date(y, m - 1, 22));
+  if (due === 'next1') return localDateStr(new Date(y, m, 1));
+  if (due === 'next2') return localDateStr(new Date(y, m, 2));
+  return localDateStr(new Date());
+}
+function shortDate(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// Weidner: one bill → Rent + Parking + Sewer, with the two summary remarks
+function weidnerRows(A, key) {
+  const rec = monthly[key] || {};
+  const amt = k => (rec[k] ? rec[k].amount : null);
+  const gas = amt('gas'), elec = amt('electric'), net = amt('internet');
+  const sewer = round2(A - RENT - PARKING);
+  const missU = [gas === null && 'gas', elec === null && 'electric'].filter(Boolean);
+  const missT = [...missU, net === null && 'internet'].filter(Boolean);
+  const utilities = round2((gas || 0) + (elec || 0) + sewer);
+  const total = round2(A + (gas || 0) + (elec || 0) + (net || 0));
+  const note = m => (m.length ? ` (missing ${m.join(', ')})` : '');
+  return {
+    missing: missT,
+    rows: [
+      mRow('Weidner', 'Rent', 'Checking', 'Home', 'Rent', RENT),
+      mRow('Weidner', 'Parking', 'Checking', 'Transport', 'Parking', PARKING, `Gas + electric + sewer = ${fmtMoney(utilities)}${note(missU)}`),
+      mRow('Weidner', 'Sewer and water', 'Checking', 'Utilities', 'Others', sewer, `Total paid = ${fmtMoney(total)}${note(missT)}`),
+    ]
+  };
+}
+
+function openMonthly() {
+  viewMonth = defaultMonthKey(); expandedMonthly = null;
+  renderMonthly();
+  document.getElementById('monthly-panel').classList.add('open');
+}
+function closePanel(id) { document.getElementById(id).classList.remove('open'); }
+function shiftMonth(delta) {
+  const [y, m] = viewMonth.split('-').map(Number);
+  viewMonth = monthKey(new Date(y, m - 1 + delta, 1)); expandedMonthly = null;
+  renderMonthly();
+}
+function toggleMonthlyItem(key) { expandedMonthly = expandedMonthly === key ? null : key; renderMonthly(); }
+
+function renderMonthly() {
+  const [y, m] = viewMonth.split('-').map(Number);
+  document.getElementById('month-label').textContent = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const rec = monthly[viewMonth] || {};
+  const amt = k => (rec[k] ? rec[k].amount : null);
+
+  // Running totals for the month (in app only)
+  const gas = amt('gas'), elec = amt('electric'), net = amt('internet'), bill = amt('weidner');
+  const sewer = bill !== null ? round2(bill - RENT - PARKING) : null;
+  const sum = arr => fmtMoney(arr.reduce((s, v) => s + (v || 0), 0));
+  const pend = arr => (arr.some(v => v === null) ? ' (so far)' : '');
+  const doneCount = MONTHLY_ITEMS.filter(i => rec[i.key]).length;
+  document.getElementById('monthly-totals').innerHTML =
+    `${doneCount}/${MONTHLY_ITEMS.length} entered<br>` +
+    `Gas + electric + sewer: $${sum([gas, elec, sewer])}${pend([gas, elec, sewer])}<br>` +
+    `Total paid: $${sum([bill, gas, elec, net])}${pend([bill, gas, elec, net])}`;
+
+  document.getElementById('monthly-list').innerHTML = MONTHLY_ITEMS.map(item => {
+    const done = rec[item.key];
+    const open = expandedMonthly === item.key;
+    const meta = done ? `$${fmtMoney(done.amount)} · ${shortDate(done.date)}`
+                      : `${item.def !== undefined ? '$' + fmtMoney(item.def) + ' · ' : ''}due ${shortDate(monthDueDate(viewMonth, item.due))}`;
+    let body = '';
+    if (open && done) {
+      body = `<div class="m-body"><button class="m-undo" onclick="undoMonthly('${item.key}')">Undo checkmark (does not remove rows from Excel)</button></div>`;
+    } else if (open) {
+      const val = item.def !== undefined ? fmtMoney(item.def) : '';
+      body = `<div class="m-body">
+        <div class="field-row">
+          <div class="field"><label>Amount</label><input type="text" id="m-amt" inputmode="decimal" placeholder="0.00" value="${val}" onblur="formatMoneyInput(this)"></div>
+          <div class="field"><label>Date</label><input type="date" id="m-date" value="${monthDueDate(viewMonth, item.due)}"></div>
+        </div>
+        <button class="btn-sync-all" style="margin-top:0;" onclick="commitMonthly('${item.key}')">Add</button>
+      </div>`;
+    }
+    return `<div class="m-item${done ? ' done' : ''}${open ? ' open' : ''}">
+      <div class="m-head" onclick="toggleMonthlyItem('${item.key}')">
+        <span class="m-check">${done ? '✓' : '○'}</span>
+        <span class="m-title">${escHtml(item.label)}</span>
+        <span class="m-meta">${meta}</span>
+      </div>${body}</div>`;
+  }).join('');
+}
+
+async function commitMonthly(key) {
+  if (monthlyBusy) return;
+  const item = MONTHLY_ITEMS.find(i => i.key === key);
+  const A = parseMoneyInput(document.getElementById('m-amt').value);
+  const date = document.getElementById('m-date').value;
+  if (isNaN(A) || A < 0) return showToast('Enter a valid amount', 'error');
+  if (!date) return showToast('Date is required', 'error');
+  if (item.min !== undefined && A < item.min) return showToast(`Must be at least $${fmtMoney(item.min)}`, 'error');
+
+  let partial;
+  if (key === 'weidner') {
+    const w = weidnerRows(A, viewMonth);
+    if (w.missing.length && !confirm(`Not entered yet this month: ${w.missing.join(', ')}.\n\nAdd Weidner anyway? The remarks will note what's missing.`)) return;
+    partial = w.rows;
+  } else {
+    partial = item.rows(A);
+  }
+
+  const inputted = nowStamp();
+  const rows = partial.map(p => ({ sheet: 'Cash', payload: { date, ...p, inputted } }));
+  monthlyBusy = true;
+  const ok = await commitRows(rows, `— ${item.label}`);
+  monthlyBusy = false;
+  if (!ok) return;
+
+  monthly[viewMonth] = monthly[viewMonth] || {};
+  monthly[viewMonth][key] = { amount: A, date };
+  saveMonthly();
+  addHistory(item.label, rows[0].payload.cost < 0 ? -A : A, '', 'Cash', date);
+  expandedMonthly = null;
+  renderMonthly();
+}
+
+function undoMonthly(key) {
+  if (!confirm('Clear this checkmark? Rows already sent or queued stay as they are.')) return;
+  if (monthly[viewMonth]) { delete monthly[viewMonth][key]; saveMonthly(); }
+  expandedMonthly = null;
+  renderMonthly();
+}
+
+// ── Transfer (Cash) ──────────────────────────────────────────────────────────
+// Savings rule: the Savings category goes on the non-savings account's row
+// (+ into savings, − out of savings). Savings ↔ savings gets no category.
+
+const ACCOUNT_VENUE = { Checking: 'Wells Fargo', Savings: 'Discover', CheckingCO: 'Capital One', SavingsCO: 'Capital One', SavingsF: 'Capital One', Optum: 'Optum', Fidelity: 'Fidelity', Venmo: 'Venmo', Cash: '' };
+const SAVINGS_ACCOUNTS = new Set(['Savings', 'SavingsCO', 'SavingsF', 'Fidelity']);
+let transferBusy = false;
+
+function transferRows(from, to, A, cashVenue, remarks) {
+  const fromSav = SAVINGS_ACCOUNTS.has(from), toSav = SAVINGS_ACCOUNTS.has(to);
+  const activities = !fromSav && toSav ? 'Transfer (+savings)' : fromSav && !toSav ? 'Transfer (-savings)' : 'Transfer';
+  const venue = acct => (acct === 'Cash' ? cashVenue : ACCOUNT_VENUE[acct]);
+  return [
+    mRow(venue(from), activities, from, !fromSav && toSav ? 'Savings' : '', '', A, remarks),
+    mRow(venue(to), activities, to, fromSav && !toSav ? 'Savings' : '', '', -A, remarks),
+  ];
+}
+
+function openTransfer() {
+  const opts = Object.keys(ACCOUNT_VENUE).map(a => `<option value="${a}">${a}</option>`).join('');
+  const from = document.getElementById('t-from'), to = document.getElementById('t-to');
+  if (!from.options.length) { from.innerHTML = opts; to.innerHTML = opts; from.value = 'Venmo'; to.value = 'Checking'; }
+  document.getElementById('t-date').value = localDateStr(new Date());
+  updateTransferPreview();
+  document.getElementById('transfer-panel').classList.add('open');
+}
+
+function updateTransferPreview() {
+  const from = document.getElementById('t-from').value, to = document.getElementById('t-to').value;
+  document.getElementById('t-cash-venue-wrap').style.display = (from === 'Cash' || to === 'Cash') ? '' : 'none';
+  const el = document.getElementById('t-preview');
+  if (from === to) { el.textContent = 'Pick two different accounts.'; return; }
+  const A = parseMoneyInput(document.getElementById('t-amount').value);
+  const rows = transferRows(from, to, isNaN(A) ? 0 : A, document.getElementById('t-cash-venue').value.trim(), '');
+  el.innerHTML = rows.map(r => `${escHtml(r.venue || '—')} · ${escHtml(r.activities)} · ${escHtml(r.method)}${r.category ? ' · ' + r.category : ''} · ${r.cost < 0 ? '−' : '+'}$${fmtMoney(r.cost)}`).join('<br>');
+}
+
+async function commitTransfer() {
+  if (transferBusy) return;
+  const from = document.getElementById('t-from').value, to = document.getElementById('t-to').value;
+  const A = parseMoneyInput(document.getElementById('t-amount').value);
+  const date = document.getElementById('t-date').value;
+  if (from === to) return showToast('Pick two different accounts', 'error');
+  if (isNaN(A) || A <= 0) return showToast('Enter a valid amount', 'error');
+  if (!date) return showToast('Date is required', 'error');
+
+  const inputted = nowStamp();
+  const partial = transferRows(from, to, A, document.getElementById('t-cash-venue').value.trim(), document.getElementById('t-remarks').value.trim());
+  const rows = partial.map(p => ({ sheet: 'Cash', payload: { date, ...p, inputted } }));
+  transferBusy = true;
+  const btn = document.getElementById('btn-transfer'); btn.disabled = true;
+  const ok = await commitRows(rows, `— ${from} → ${to}`);
+  transferBusy = false; btn.disabled = false;
+  if (!ok) return;
+
+  addHistory(`${from} → ${to}`, A, rows[0].payload.category, 'Cash', date);
+  ['t-amount', 't-remarks', 't-cash-venue'].forEach(id => (document.getElementById(id).value = ''));
+  closePanel('transfer-panel');
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
