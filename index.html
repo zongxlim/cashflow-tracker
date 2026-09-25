@@ -709,16 +709,20 @@ function handleAuthClick() {
 
 // ── Graph API ────────────────────────────────────────────────────────────────
 
+// Base URL for the configured workbook (null if no file path set)
+function workbookBase() {
+  const filePath = localStorage.getItem('cf_file_path');
+  if (!filePath) return null;
+  return `https://graph.microsoft.com/v1.0/me/drive/root:/${filePath.split('/').map(encodeURIComponent).join('/')}:/workbook`;
+}
+
 async function getTableColumns(tableName) {
   if (columnCache[tableName]) return columnCache[tableName];
   const token = await getToken();
   if (!token) return null;
-  const filePath = localStorage.getItem('cf_file_path');
-  if (!filePath) { showToast('Set file path in ⚙ setup', 'error'); return null; }
-  const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
-
-  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodedPath}:/workbook/tables/${encodeURIComponent(tableName)}/columns`;
-  const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+  const base = workbookBase();
+  if (!base) { showToast('Set file path in ⚙ setup', 'error'); return null; }
+  const res = await fetch(`${base}/tables/${encodeURIComponent(tableName)}/columns`, { headers: { 'Authorization': `Bearer ${token}` } });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     showToast(`Table error: ${err?.error?.message || res.status}`, 'error');
@@ -730,55 +734,91 @@ async function getTableColumns(tableName) {
   return cols;
 }
 
-async function addRowToExcel(sheetKey, payload, onBeforeSend) {
+// Keeps the workbook open for the length of a sync so Excel doesn't reopen it for every request.
+// If it can't be opened, the sync still works (just without the speed-up).
+async function openWorkbookSession() {
+  const base = workbookBase();
   const token = await getToken();
-  if (!token) return false;
+  if (!base || !token) return null;
+  try {
+    const res = await fetch(`${base}/createSession`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ persistChanges: true })
+    });
+    if (!res.ok) return null;
+    return (await res.json()).id || null;
+  } catch (e) { return null; }
+}
 
-  const filePath = localStorage.getItem('cf_file_path');
+async function closeWorkbookSession(sessionId) {
+  if (!sessionId || !accessToken) return;
+  const base = workbookBase();
+  if (!base) return;
+  try {
+    await fetch(`${base}/closeSession`, { method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}`, 'workbook-session-id': sessionId } });
+  } catch (e) { /* sessions also expire on their own */ }
+}
+
+const BATCH_SIZE = 50;
+
+// Splits rows into one request per table (in first-seen order), max BATCH_SIZE rows each
+function batchBySheet(items) {
+  const bySheet = new Map();
+  items.forEach(i => { if (!bySheet.has(i.sheet)) bySheet.set(i.sheet, []); bySheet.get(i.sheet).push(i); });
+  const batches = [];
+  bySheet.forEach((list, sheet) => {
+    for (let k = 0; k < list.length; k += BATCH_SIZE) batches.push({ sheet, items: list.slice(k, k + BATCH_SIZE) });
+  });
+  return batches;
+}
+
+// Writes one or more rows to a table in a single request (all or nothing).
+// Returns 'ok', 'failed' (Excel definitely wrote nothing — safe to retry)
+// or 'unsure' (no clear answer — the rows may already be in Excel, so never auto-resend).
+async function addRowsToExcel(sheetKey, payloads, onBeforeSend, sessionId) {
+  const token = await getToken();
+  if (!token) return 'failed';
+
+  const base = workbookBase();
   const tableName = localStorage.getItem(`cf_table_${sheetKey.toLowerCase()}`);
-  if (!filePath || !tableName) {
+  if (!base || !tableName) {
     showToast('Set file path and table names in ⚙ setup', 'error');
-    return false;
+    return 'failed';
   }
-  const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
 
-  const cols = await getTableColumns(tableName);
-  if (!cols) return false;
+  let cols;
+  try { cols = await getTableColumns(tableName); } catch (e) { return 'failed'; } // nothing sent yet
+  if (!cols) return 'failed';
 
-  // Map payload fields to column names (case-insensitive)
+  // Map payload fields to column names (case-insensitive); other columns (formulas) left null
   const uploaded = nowStamp();
-  const fieldMap = {};
-  const payloadMap = {
-    'date': payload.date, 'venue': payload.venue, 'activities': payload.activities,
-    'method': payload.method, 'category': payload.category, 'sub': payload.sub,
-    'sub2': payload.sub2, 'sub3': payload.sub3, 'cost': payload.cost, 'remarks': payload.remarks,
-    'inputted': payload.inputted, 'uploaded': uploaded
-  };
-  Object.entries(payloadMap).forEach(([k, v]) => { fieldMap[k.toLowerCase()] = v; });
-
-  const values = cols.map(colName => {
-    const key = colName.toLowerCase();
-    return fieldMap[key] !== undefined ? fieldMap[key] : null;
+  const values = payloads.map(p => {
+    const fields = {
+      date: p.date, venue: p.venue, activities: p.activities, method: p.method, category: p.category,
+      sub: p.sub, sub2: p.sub2, sub3: p.sub3, cost: p.cost, remarks: p.remarks, inputted: p.inputted, uploaded
+    };
+    return cols.map(col => { const v = fields[col.toLowerCase()]; return v !== undefined ? v : null; });
   });
 
-  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodedPath}:/workbook/tables/${encodeURIComponent(tableName)}/rows/add`;
+  const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+  if (sessionId) headers['workbook-session-id'] = sessionId;
   let res;
   if (onBeforeSend) onBeforeSend();
   writesInFlight++;
   try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values: [values] })
-    });
+    res = await fetch(`${base}/tables/${encodeURIComponent(tableName)}/rows/add`, { method: 'POST', headers, body: JSON.stringify({ values }) });
+  } catch (e) {
+    return 'unsure'; // connection dropped / timed out after sending — Excel may have written it
   } finally {
     writesInFlight--;
   }
 
-  if (res.ok) return true;
+  if (res.ok) return 'ok';
   const err = await res.json().catch(() => ({}));
   showToast(`Write error: ${err?.error?.message || res.status}`, 'error');
-  return false;
+  // 5xx (busy / timeout) can still have been written; 4xx means Excel rejected it outright
+  return res.status >= 500 ? 'unsure' : 'failed';
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -1013,7 +1053,7 @@ function renderQueueReview() {
       <div class="qi-left">
         <div class="qi-venue">${escHtml(p.venue || '—')}</div>
         <div class="qi-meta">${escHtml(p.date)} · ${escHtml(item.sheet)}${p.category ? ' · ' + escHtml(p.category) : ''}</div>
-        ${item.uncertain ? '<div class="qi-meta" style="color:#fb923c;">⚠ Sync was interrupted — may already be in Excel. Check, then ✕ or send.</div>' : ''}
+        ${item.uncertain ? '<div class="qi-meta" style="color:#fb923c;">⚠ Excel did not confirm this, so it may already be there. Check Excel, then ✕ if it is there or send if not.</div>' : ''}
       </div>
       <div class="qi-amount">${sign}${display}</div>
       ${item.uncertain ? `<button class="qi-delete" style="color:var(--accent);" onclick="confirmQueueItem(${i})" title="Not in Excel — send it">send</button>` : ''}
@@ -1069,24 +1109,35 @@ async function syncQueue() {
   const syncBtn = document.getElementById('btn-sync-all');
   if (syncBtn) { syncBtn.disabled = true; syncBtn.textContent = 'Syncing…'; }
   showToast(`Syncing ${pending.length} transaction${pending.length > 1 ? 's' : ''}…`, 'success');
-  let failedCount = 0;
-  for (const item of pending) {
-    let ok = false;
-    // "sending" is saved just before the request: if the app closes mid-request, this item gets flagged for review
-    try { ok = await addRowToExcel(item.sheet, item.payload, () => { item.sending = true; saveQueue(); }); } catch (e) { ok = false; }
-    delete item.sending;
-    if (ok) { const idx = queue.indexOf(item); if (idx !== -1) queue.splice(idx, 1); }
-    else failedCount++;
-    saveQueue(); // confirmed rows leave the queue immediately, so an interruption can't resend them
+  let failedCount = 0, unsureCount = 0;
+  const batches = batchBySheet(pending);
+  // A session only pays off when there's more than one request to make
+  const sessionId = batches.length > 1 ? await openWorkbookSession() : null;
+  for (const batch of batches) {
     if (authBlocked) break; // signed out / session expired: stop, nothing else can go through
+    let status;
+    // "sending" is saved just before the request: if the app closes mid-request, these get flagged for review
+    const markSending = () => { batch.items.forEach(i => (i.sending = true)); saveQueue(); };
+    try { status = await addRowsToExcel(batch.sheet, batch.items.map(i => i.payload), markSending, sessionId); }
+    catch (e) { status = batch.items[0].sending ? 'unsure' : 'failed'; }
+    batch.items.forEach(i => delete i.sending);
+    if (status === 'ok') batch.items.forEach(i => { const idx = queue.indexOf(i); if (idx !== -1) queue.splice(idx, 1); });
+    else if (status === 'unsure') { batch.items.forEach(i => (i.uncertain = true)); unsureCount += batch.items.length; }
+    else failedCount += batch.items.length;
+    saveQueue(); // confirmed rows leave the queue immediately, so an interruption can't resend them
   }
+  await closeWorkbookSession(sessionId);
   badge.classList.remove('syncing');
   syncBadge.classList.remove('syncing'); syncBadge.textContent = '⇪ sync';
   isSyncing = false;
   renderQueueReview();
   if (balanceCache) loadBalances();
   if (authBlocked) showToast('Sign-in expired — sign in, then sync again', 'error');
-  else showToast(failedCount === 0 ? '✓ All synced' : `${failedCount} failed — tap to retry`, failedCount === 0 ? 'success' : 'error');
+  else if (failedCount === 0 && unsureCount === 0) showToast('✓ All synced', 'success');
+  else showToast([
+    unsureCount && `⚠ ${unsureCount} not confirmed — check Excel, then review pending`,
+    failedCount && `${failedCount} failed — tap to retry`
+  ].filter(Boolean).join(' · '), 'error');
 }
 
 window.addEventListener('online', () => { if (queue.length > 0 && !queueMode) { showToast('Back online — syncing…', 'success'); setTimeout(syncQueue, 1000); } });
@@ -1103,14 +1154,23 @@ async function commitRows(rows, label) {
     showToast(`✓ Queued — ${why}`, 'success');
     return true;
   }
-  for (let i = 0; i < rows.length; i++) {
-    let ok = false;
-    try { ok = await addRowToExcel(rows[i].sheet, rows[i].payload); } catch (e) { ok = false; }
-    if (!ok) {
-      if (i === 0) { showToast('Failed to add — check connection and try again', 'error'); return false; }
-      // Earlier rows are confirmed written; queue the rest so the group stays complete
-      rows.slice(i).forEach(r => queue.push(r)); saveQueue();
-      showToast(`✓ ${i} added, ${rows.length - i} queued`, 'success');
+  const batches = batchBySheet(rows);
+  for (let b = 0; b < batches.length; b++) {
+    let status, sent = false;
+    try { status = await addRowsToExcel(batches[b].sheet, batches[b].items.map(r => r.payload), () => (sent = true)); }
+    catch (e) { status = sent ? 'unsure' : 'failed'; }
+    if (status !== 'ok') {
+      // Definite failure on the first table: nothing was written, keep the form so you can retry
+      if (status === 'failed' && b === 0) { showToast('Failed to add — check connection and try again', 'error'); return false; }
+      // Otherwise track the rest in pending (earlier tables are confirmed written).
+      // An unclear answer gets ⚠ so it's never resent without you checking Excel first.
+      if (status === 'unsure') batches[b].items.forEach(r => (r.uncertain = true));
+      const rest = batches.slice(b).flatMap(x => x.items);
+      const added = rows.length - rest.length;
+      rest.forEach(r => queue.push(r)); saveQueue();
+      showToast(status === 'unsure'
+        ? '⚠ Excel didn\'t confirm — check Excel, then review pending'
+        : `✓ ${added} added, ${rest.length} queued`, status === 'unsure' ? 'error' : 'success');
       return true;
     }
   }
@@ -1371,12 +1431,10 @@ function deleteSub(cat, sub) { catSub[cat] = catSub[cat].filter(s => s !== sub);
 async function getLastRow(tableName) {
   const token = await getToken();
   if (!token) return null;
-  const filePath = localStorage.getItem('cf_file_path');
-  if (!filePath) return null;
-  const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
-  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodedPath}:/workbook/tables/${encodeURIComponent(tableName)}/range/lastRow`;
+  const base = workbookBase();
+  if (!base) return null;
   try {
-    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+    const res = await fetch(`${base}/tables/${encodeURIComponent(tableName)}/range/lastRow`, { headers: { 'Authorization': `Bearer ${token}` } });
     if (!res.ok) return null;
     const data = await res.json();
     return data.values ? data.values[0] : null;
