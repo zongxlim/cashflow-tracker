@@ -1131,7 +1131,7 @@ async function syncQueue() {
   syncBadge.classList.remove('syncing'); syncBadge.textContent = '⇪ sync';
   isSyncing = false;
   renderQueueReview();
-  if (balanceCache) loadBalances();
+  if (balanceCache && !authBlocked) loadBalances(); // refreshing would redirect to sign-in and hide the message
   if (authBlocked) showToast('Sign-in expired — sign in, then sync again', 'error');
   else if (failedCount === 0 && unsureCount === 0) showToast('✓ All synced', 'success');
   else showToast([
@@ -1605,9 +1605,9 @@ function weidnerRows(A, key) {
   return {
     missing: missT,
     rows: [
-      mRow('Weidner', 'Rent', 'Checking', 'Home', 'Rent', RENT),
-      mRow('Weidner', 'Parking', 'Checking', 'Transport', 'Parking', PARKING, `Gas + electric + sewer = ${fmtMoney(utilities)}${note(missU)}`),
-      mRow('Weidner', 'Sewer and water', 'Checking', 'Utilities', 'Others', sewer, `Total paid = ${fmtMoney(total)}${note(missT)}`),
+      mRow('Weidner', 'Rent', 'Checking', 'Home', 'Rent', RENT, `Gas + electric + sewer = ${fmtMoney(utilities)}${note(missU)}`),
+      mRow('Weidner', 'Parking', 'Checking', 'Transport', 'Parking', PARKING, `Total Weidner payment = ${fmtMoney(A)}`),
+      mRow('Weidner', 'Sewer and water', 'Checking', 'Utilities', 'Others', sewer, `Total apartment paid = ${fmtMoney(total)}${note(missT)}`),
     ]
   };
 }
@@ -1640,7 +1640,7 @@ function renderMonthly() {
   document.getElementById('monthly-totals').innerHTML =
     `${doneCount}/${MONTHLY_ITEMS.length} entered<br>` +
     `Gas + electric + sewer: $${sum([gas, elec, sewer])}${pend([gas, elec, sewer])}<br>` +
-    `Total paid: $${sum([bill, gas, elec, net])}${pend([bill, gas, elec, net])}`;
+    `Total apartment paid: $${sum([bill, gas, elec, net])}${pend([bill, gas, elec, net])}`;
 
   document.getElementById('monthly-list').innerHTML = MONTHLY_ITEMS.map(item => {
     const done = rec[item.key];
@@ -1754,9 +1754,11 @@ async function commitTransfer() {
   if (from === to) return showToast('Pick two different accounts', 'error');
   if (isNaN(A) || A <= 0) return showToast('Enter a valid amount', 'error');
   if (!date) return showToast('Date is required', 'error');
+  const cashVenue = document.getElementById('t-cash-venue').value.trim();
+  if ((from === 'Cash' || to === 'Cash') && !cashVenue) return showToast('Enter who / where for the Cash side', 'error');
 
   const inputted = nowStamp();
-  const partial = transferRows(from, to, A, document.getElementById('t-cash-venue').value.trim(), document.getElementById('t-remarks').value.trim());
+  const partial = transferRows(from, to, A, cashVenue, document.getElementById('t-remarks').value.trim());
   const rows = partial.map(p => ({ sheet: 'Cash', payload: { date, ...p, inputted } }));
   transferBusy = true;
   const btn = document.getElementById('btn-transfer'); btn.disabled = true;
