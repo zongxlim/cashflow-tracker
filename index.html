@@ -222,6 +222,18 @@
   .queue-item.sheet-Credit .qi-amount { color: var(--credit-color); }
   .queue-item .qi-delete { background: none; border: none; color: var(--error); font-size: 16px; cursor: pointer; padding: 0 4px; opacity: 0.7; }
   .queue-item .qi-delete:hover { opacity: 1; }
+  .qi-wrap { margin-bottom: 8px; }
+  .qi-wrap .queue-item { margin-bottom: 0; }
+  .qi-wrap.editing .queue-item { border-color: var(--accent); border-radius: 8px 8px 0 0; }
+  .qi-edit { border: 1px solid var(--accent); border-top: none; border-radius: 0 0 8px 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--surface); }
+  .qi-edit .field-row { gap: 10px; }
+  .qi-edit input { padding: 10px 12px; font-size: 13px; }
+  .qi-edit .cost-wrap input { padding-left: 42px; }
+  .qi-edit-actions { display: flex; gap: 8px; }
+  .qi-edit-actions button { flex: 1; padding: 11px; border-radius: 8px; font-family: var(--mono); font-size: 12px; cursor: pointer; }
+  .qi-save { background: var(--accent); border: none; color: #fff; }
+  .qi-cancel { background: none; border: 1px solid var(--border); color: var(--text-muted); }
+  .qi-note { font-family: var(--mono); font-size: 10px; color: #fb923c; line-height: 1.5; }
   .queue-empty { font-family: var(--mono); font-size: 12px; color: var(--text-dim); text-align: center; padding: 24px 0; }
   .btn-sync-all {
     width: 100%; padding: 14px; background: var(--accent); border: none; border-radius: 10px;
@@ -1029,12 +1041,17 @@ function openQueueReview() {
 }
 
 function closeQueueReview() {
+  editingItem = null;
   document.getElementById('queue-panel').classList.remove('open');
 }
+
+let editingItem = null;  // the queued row being edited (by reference, so syncs can't mix it up)
+let editNegative = false;
 
 function renderQueueReview() {
   const el = document.getElementById('queue-list');
   const syncBtn = document.getElementById('btn-sync-all');
+  if (editingItem && !queue.includes(editingItem)) editingItem = null; // synced or deleted meanwhile
   if (queue.length === 0) {
     el.innerHTML = '<div class="queue-empty">No pending transactions</div>';
     syncBtn.disabled = true;
@@ -1049,17 +1066,100 @@ function renderQueueReview() {
     const num = typeof p.cost === 'number' ? p.cost : parseFloat(p.cost);
     const display = isNaN(num) ? '—' : '$' + fmtMoney(num);
     const sign = !isNaN(num) && num < 0 ? '−' : '';
-    return `<div class="queue-item sheet-${item.sheet}">
+    const editing = item === editingItem;
+    const meta = [p.date, item.sheet, p.method, p.category].filter(Boolean).map(escHtml).join(' · ');
+    return `<div class="qi-wrap${editing ? ' editing' : ''}">
+    <div class="queue-item sheet-${item.sheet}">
       <div class="qi-left">
-        <div class="qi-venue">${escHtml(p.venue || '—')}</div>
-        <div class="qi-meta">${escHtml(p.date)} · ${escHtml(item.sheet)}${p.category ? ' · ' + escHtml(p.category) : ''}</div>
+        <div class="qi-venue">${escHtml(p.venue || '—')}${p.activities ? ' · ' + escHtml(p.activities) : ''}</div>
+        <div class="qi-meta">${meta}${item.group ? ` · 🔗 ${item.group.i} of ${item.group.n}` : ''}</div>
         ${item.uncertain ? '<div class="qi-meta" style="color:#fb923c;">⚠ Excel did not confirm this, so it may already be there. Check Excel, then ✕ if it is there or send if not.</div>' : ''}
       </div>
       <div class="qi-amount">${sign}${display}</div>
+      <button class="qi-delete" style="color:var(--accent);font-size:12px;" onclick="toggleQueueEdit(${i})" title="Edit">${editing ? 'close' : 'edit'}</button>
       ${item.uncertain ? `<button class="qi-delete" style="color:var(--accent);" onclick="confirmQueueItem(${i})" title="Not in Excel — send it">send</button>` : ''}
       <button class="qi-delete" onclick="deleteQueueItem(${i})" title="Delete">✕</button>
-    </div>`;
+    </div>${editing ? queueEditForm(item) : ''}</div>`;
   }).join('');
+}
+
+function queueEditForm(item) {
+  const p = item.payload;
+  const v = x => escHtml(x == null ? '' : x);
+  const opts = list => [...new Set(list)].map(o => `<option value="${v(o)}">`).join('');
+  const allSubs = Object.values(catSub).flat();
+  return `<div class="qi-edit">
+    ${item.group ? `<div class="qi-note">🔗 Linked to ${item.group.n - 1} other row${item.group.n > 2 ? 's' : ''} entered together. Edits here don't change them, so update those too if needed.</div>` : ''}
+    <div class="field"><label>Table</label><select id="q-sheet" onchange="onEditSheetChange()">${Object.keys(SHEETS).map(s => `<option value="${s}"${s === item.sheet ? ' selected' : ''}>${s}</option>`).join('')}</select></div>
+    <div class="field-row">
+      <div class="field"><label>Date</label><input type="date" id="q-date" value="${v(p.date)}"></div>
+      <div class="field"><label>Cost</label><div class="cost-wrap"><span class="cost-sign${editNegative ? ' negative' : ''}" id="q-sign" onclick="toggleEditSign()">${editNegative ? '−' : '+'}</span><input type="text" id="q-amount" inputmode="decimal" value="${v(isNaN(parseFloat(p.cost)) ? '' : fmtMoney(parseFloat(p.cost)))}" onblur="formatMoneyInput(this)"></div></div>
+    </div>
+    <div class="field"><label>Venue</label><input type="text" id="q-venue" value="${v(p.venue)}" autocapitalize="words"></div>
+    <div class="field"><label>Activities</label><input type="text" id="q-activities" value="${v(p.activities)}"></div>
+    <div class="field-row">
+      <div class="field"><label>Method</label><input type="text" id="q-method" list="dl-q-method" value="${v(p.method)}"><datalist id="dl-q-method">${opts(SHEETS[item.sheet] ? SHEETS[item.sheet].methods : [])}</datalist></div>
+      <div class="field"><label>Category</label><input type="text" id="q-category" list="dl-q-category" value="${v(p.category)}"><datalist id="dl-q-category">${opts(Object.keys(catSub))}</datalist></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Sub</label><input type="text" id="q-sub" list="dl-q-sub" value="${v(p.sub)}"><datalist id="dl-q-sub">${opts(allSubs)}</datalist></div>
+      <div class="field"><label>Sub2</label><input type="text" id="q-sub2" value="${v(p.sub2)}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Sub3</label><input type="text" id="q-sub3" value="${v(p.sub3)}"></div>
+      <div class="field"><label>Remarks</label><input type="text" id="q-remarks" value="${v(p.remarks)}"></div>
+    </div>
+    <div class="qi-edit-actions"><button class="qi-cancel" onclick="toggleQueueEdit(-1)">Cancel</button><button class="qi-save" onclick="saveQueueEdit()">Save</button></div>
+  </div>`;
+}
+
+function toggleQueueEdit(idx) {
+  if (isSyncing) return showToast('Wait for sync to finish', 'error');
+  const item = queue[idx];
+  editingItem = !item || item === editingItem ? null : item;
+  if (editingItem) editNegative = parseFloat(editingItem.payload.cost) < 0;
+  renderQueueReview();
+}
+
+// Method suggestions follow the chosen table
+function onEditSheetChange() {
+  const sheet = document.getElementById('q-sheet').value;
+  document.getElementById('dl-q-method').innerHTML = SHEETS[sheet].methods.map(m => `<option value="${escHtml(m)}">`).join('');
+}
+
+function toggleEditSign() {
+  editNegative = !editNegative;
+  const el = document.getElementById('q-sign');
+  el.textContent = editNegative ? '−' : '+';
+  el.classList.toggle('negative', editNegative);
+}
+
+function saveQueueEdit() {
+  if (isSyncing) return showToast('Wait for sync to finish', 'error');
+  if (!editingItem || !queue.includes(editingItem)) {
+    editingItem = null; renderQueueReview();
+    return showToast('Already synced — change it in Excel instead', 'error');
+  }
+  const val = id => document.getElementById(id).value.trim();
+  const date = val('q-date');
+  const amount = parseMoneyInput(val('q-amount'));
+  if (!date) return showToast('Date is required', 'error');
+  if (isNaN(amount)) return showToast('Enter a valid cost', 'error');
+  const sheet = val('q-sheet');
+  const method = val('q-method');
+  if (!SHEETS[sheet]) return showToast('Pick Credit or Cash', 'error');
+  if (method && !SHEETS[sheet].methods.includes(method) &&
+      !confirm(`"${method}" isn't an account in ${sheet}, so this cost won't count toward any ${sheet} balance.\n\nSave anyway?`)) return;
+  editingItem.sheet = sheet;
+  Object.assign(editingItem.payload, {
+    date, cost: round2(editNegative ? -Math.abs(amount) : Math.abs(amount)),
+    venue: val('q-venue'), activities: val('q-activities'), method: val('q-method'),
+    category: val('q-category'), sub: val('q-sub'), sub2: val('q-sub2'), sub3: val('q-sub3'), remarks: val('q-remarks')
+  });
+  editingItem = null;
+  saveQueue();
+  renderQueueReview();
+  showToast('✓ Updated', 'success');
 }
 
 function deleteQueueItem(idx) {
@@ -1147,6 +1247,10 @@ window.addEventListener('online', () => { if (!queueMode && queue.some(i => !i.u
 // Sends rows to Excel, or queues them (offline / signed out / queue mode).
 // Returns true once every row is written or safely queued.
 async function commitRows(rows, label) {
+  if (rows.length > 1) {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    rows.forEach((r, i) => (r.group = { id, i: i + 1, n: rows.length }));
+  }
   const signedIn = !!msalInstance && msalInstance.getAllAccounts().length > 0;
   if (!navigator.onLine || !signedIn || queueMode) {
     rows.forEach(r => queue.push(r)); saveQueue();
@@ -1325,7 +1429,7 @@ function restoreFormDraft() {
 function renderHistory() {
   const el = document.getElementById('history-section');
   if (history.length === 0) { el.innerHTML = ''; return; }
-  el.innerHTML = `<div class="history-label">Recent entries</div>` + history.slice(0, 5).map(h => `
+  el.innerHTML = `<div class="history-label">Recent entries</div>` + history.slice(0, 10).map(h => `
     <div class="history-item sheet-${h.sheet}"><div class="hi-left"><div class="hi-venue">${escHtml(h.venue)}</div><div class="hi-meta">${h.date} · ${h.sheet}${h.category ? ' · ' + escHtml(h.category) : ''}</div></div><div class="hi-amount">${Number(h.cost) < 0 ? '−' : ''}$${fmtMoney(Number(h.cost))}</div></div>
   `).join('');
 }
@@ -1407,7 +1511,7 @@ function renderCatManager() {
   `).join('');
 }
 
-function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function escAttr(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 function escId(s) { return String(s).replace(/[^a-zA-Z0-9]/g, '_'); }
 
