@@ -1555,7 +1555,7 @@ const MONTHLY_ITEMS = [
   { key: 'hsaMine',     label: 'My HSA contribution',      due: 'eom',   def: 266.66,  rows: A => [mRow('Carleton', 'My contribution', 'Optum', 'HSA', '', -A)] },
   { key: 'interest',    label: 'Optum interest',           due: 'eom',   rows: A => [mRow('Carleton', 'Interest', 'Optum', '', '', -A)] },
   { key: 'pay',         label: 'Pay',                      due: 'eom',   def: 5689.33, rows: A => [mRow('Carleton', 'Pay', 'Checking', 'Pay', '', -A)] },
-  { key: 'weidner',     label: 'Weidner (bill total)',     due: 'next1', min: RENT + PARKING, rows: null },
+  { key: 'weidner',     label: 'Weidner (bill total)',     due: 'next1', min: RENT + PARKING, rows: A => weidnerRows(A) },
   { key: 'phone',       label: 'Auntie Theresa (phone)',   due: 'next1', def: 32,      rows: A => [mRow('Auntie Theresa', 'Phone bill (monthly Zelle)', 'Checking', 'Need', 'Phone', A)] },
   { key: 'savings',     label: 'Savings (total)',          due: 'next2', min: FAMILY_SAVINGS, rows: A => [
       mRow('Capital One', 'Savings', 'Checking', 'Savings', '', A),
@@ -1591,25 +1591,22 @@ function shortDate(iso) {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-// Weidner: one bill → Rent + Parking + Sewer, with the two summary remarks
-function weidnerRows(A, key) {
-  const rec = monthly[key] || {};
-  const amt = k => (rec[k] ? rec[k].amount : null);
-  const gas = amt('gas'), elec = amt('electric'), net = amt('internet');
-  const sewer = round2(A - RENT - PARKING);
-  const missU = [gas === null && 'gas', elec === null && 'electric'].filter(Boolean);
-  const missT = [...missU, net === null && 'internet'].filter(Boolean);
-  const utilities = round2((gas || 0) + (elec || 0) + sewer);
-  const total = round2(A + (gas || 0) + (elec || 0) + (net || 0));
-  const note = m => (m.length ? ` (missing ${m.join(', ')})` : '');
-  return {
-    missing: missT,
-    rows: [
-      mRow('Weidner', 'Rent', 'Checking', 'Home', 'Rent', RENT, `Gas + electric + sewer = ${fmtMoney(utilities)}${note(missU)}`),
-      mRow('Weidner', 'Parking', 'Checking', 'Transport', 'Parking', PARKING, `Total Weidner payment = ${fmtMoney(A)}`),
-      mRow('Weidner', 'Sewer and water', 'Checking', 'Utilities', 'Others', sewer, `Total apartment paid = ${fmtMoney(total)}${note(missT)}`),
-    ]
-  };
+// Weidner: one bill → Rent + Parking + Sewer
+function weidnerRows(A) {
+  return [
+    mRow('Weidner', 'Rent', 'Checking', 'Home', 'Rent', RENT),
+    mRow('Weidner', 'Parking', 'Checking', 'Transport', 'Parking', PARKING, `Total Weidner payment = ${fmtMoney(A)}`),
+    mRow('Weidner', 'Sewer and water', 'Checking', 'Utilities', 'Others', round2(A - RENT - PARKING)),
+  ];
+}
+
+// The apartment totals need all four bills. Whichever is entered last carries them.
+const APARTMENT_KEYS = ['weidner', 'gas', 'electric', 'internet'];
+function apartmentTotals(amounts) {
+  const sewer = round2(amounts.weidner - RENT - PARKING);
+  const utilities = round2(amounts.gas + amounts.electric + sewer);
+  const total = round2(amounts.weidner + amounts.gas + amounts.electric + amounts.internet);
+  return `Gas + electric + sewer = ${fmtMoney(utilities)} · Total apartment paid = ${fmtMoney(total)}`;
 }
 
 function openMonthly() {
@@ -1678,13 +1675,17 @@ async function commitMonthly(key) {
   if (!date) return showToast('Date is required', 'error');
   if (item.min !== undefined && A < item.min) return showToast(`Must be at least $${fmtMoney(item.min)}`, 'error');
 
-  let partial;
-  if (key === 'weidner') {
-    const w = weidnerRows(A, viewMonth);
-    if (w.missing.length && !confirm(`Not entered yet this month: ${w.missing.join(', ')}.\n\nAdd Weidner anyway? The remarks will note what's missing.`)) return;
-    partial = w.rows;
-  } else {
-    partial = item.rows(A);
+  const partial = item.rows(A);
+  // If this is the last of the four apartment bills, its row carries the month's totals
+  if (APARTMENT_KEYS.includes(key)) {
+    const rec = monthly[viewMonth] || {};
+    const others = APARTMENT_KEYS.filter(k => k !== key);
+    if (others.every(k => rec[k])) {
+      const amounts = { [key]: A };
+      others.forEach(k => (amounts[k] = rec[k].amount));
+      const target = key === 'weidner' ? partial[2] : partial[0]; // Weidner: Sewer row (Parking has the payment total)
+      target.remarks = target.remarks ? `${target.remarks} · ${apartmentTotals(amounts)}` : apartmentTotals(amounts);
+    }
   }
 
   const inputted = nowStamp();
