@@ -158,6 +158,10 @@
   .bal-value.positive { color: var(--success); }
   .bal-value.negative { color: var(--error); }
   .bal-value.zero { color: var(--text-dim); }
+  .bal-mode { display: flex; gap: 6px; margin-bottom: 10px; }
+  .bal-mode button { flex: 1; padding: 8px 0; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); font-family: var(--mono); font-size: 11px; border-radius: 8px; cursor: pointer; }
+  .bal-mode button.active { border-color: #fbbf24; color: #fbbf24; background: rgba(251,191,36,0.1); }
+  .bal-note { font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin-bottom: 10px; }
   .bal-loading { color: var(--text-dim); font-family: var(--mono); font-size: 11px; }
   .bal-expand { display: none; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .bal-expand.open { display: flex; }
@@ -312,6 +316,11 @@
   <!-- Balance Dashboard -->
   <div class="balance-section" id="balance-section" style="display:none;">
     <div class="fav-label">Balances <span id="bal-refresh" onclick="loadBalances()" style="cursor:pointer;color:var(--accent);margin-left:8px;">↻</span></div>
+    <div class="bal-mode">
+      <button id="bal-mode-today" class="active" onclick="setBalMode('today')">As of today</button>
+      <button id="bal-mode-all" onclick="setBalMode('all')">All entered</button>
+    </div>
+    <div class="bal-note" id="bal-note"></div>
     <div class="balance-grid" id="balance-main"></div>
     <div class="more-toggle" id="bal-more-toggle" onclick="toggleBalMore()" style="margin-top:8px;">
       <span class="arrow">▶</span> More accounts
@@ -1558,6 +1567,75 @@ async function getLastRowMapped(sheetKey) {
   return map;
 }
 
+// How a positive cost moves each table's running balance (matches the Excel formulas):
+// Cash = balance above − cost, Credit = balance above + cost
+const BAL_DIRECTION = { Cash: -1, Credit: 1 };
+// Columns that are sums of other accounts, not running balances
+const BAL_DERIVED = { Cash: { 'COne Savings': ['SavingsCO', 'SavingsF', 'SavingsFL'] } };
+let balMode = 'today';
+let futureCache = null; // { Cash: { sums: {method: total}, count }, Credit: … }
+
+function excelSerial(y, m, d) { return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 864e5); }
+function cellToSerial(v) {
+  if (typeof v === 'number') return Math.floor(v);
+  const s = String(v || '').trim();
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return excelSerial(+iso[1], +iso[2], +iso[3]);
+  const t = Date.parse(s);
+  if (isNaN(t)) return null;
+  const d = new Date(t);
+  return excelSerial(d.getFullYear(), d.getMonth() + 1, d.getDate());
+}
+
+// Sums the costs of rows dated after today, per method (case-insensitive, like Excel's =)
+async function getFutureSums(sheetKey) {
+  const tableName = localStorage.getItem(`cf_table_${sheetKey.toLowerCase()}`);
+  const base = workbookBase();
+  if (!tableName || !base) return null;
+  const cols = await getTableColumns(tableName);
+  if (!cols) return null;
+  const find = n => cols.find(c => c.toLowerCase() === n);
+  const names = [find('date'), find('method'), find('cost')];
+  if (names.some(n => !n)) return null;
+  const token = await getToken();
+  if (!token) return null;
+  const get = name => fetch(`${base}/tables/${encodeURIComponent(tableName)}/columns/${encodeURIComponent(name)}/dataBodyRange?$select=values`, { headers: { 'Authorization': `Bearer ${token}` } })
+    .then(r => (r.ok ? r.json() : null)).then(j => (j && j.values ? j.values.map(x => x[0]) : null));
+  const [dates, methods, costs] = await Promise.all(names.map(get));
+  if (!dates || !methods || !costs) return null;
+  const t = new Date(); const today = excelSerial(t.getFullYear(), t.getMonth() + 1, t.getDate());
+  const sums = {}; let count = 0;
+  dates.forEach((d, i) => {
+    const serial = cellToSerial(d);
+    const cost = typeof costs[i] === 'number' ? costs[i] : parseFloat(costs[i]);
+    if (serial === null || serial <= today || isNaN(cost)) return;
+    const m = String(methods[i] || '').trim().toLowerCase();
+    if (!m) return;
+    sums[m] = (sums[m] || 0) + cost; count++;
+  });
+  return { sums, count };
+}
+
+// Balance shown for a column in the current mode
+function balValue(sheet, col, raw) {
+  const num = typeof raw === 'number' ? raw : parseFloat(raw);
+  if (balMode !== 'today' || !futureCache || !futureCache[sheet] || isNaN(num)) return raw;
+  const parts = BAL_DERIVED[sheet] && BAL_DERIVED[sheet][col];
+  if (parts) {
+    const row = balanceCache[sheet] || {};
+    return round2(parts.reduce((s, p) => s + (parseFloat(balValue(sheet, p, row[p])) || 0), 0));
+  }
+  const future = futureCache[sheet].sums[col.trim().toLowerCase()] || 0;
+  return round2(num - BAL_DIRECTION[sheet] * future);
+}
+
+function setBalMode(mode) {
+  balMode = mode;
+  document.getElementById('bal-mode-today').classList.toggle('active', mode === 'today');
+  document.getElementById('bal-mode-all').classList.toggle('active', mode === 'all');
+  renderBalances();
+}
+
 async function loadBalances() {
   if (!msalInstance || msalInstance.getAllAccounts().length === 0) {
     document.getElementById('balance-main').innerHTML = '<div class="bal-loading">Sign in to view balances</div>';
@@ -1566,12 +1644,15 @@ async function loadBalances() {
   document.getElementById('balance-main').innerHTML = '<div class="bal-loading">Loading…</div>';
 
   try {
-    const [cashRow, creditRow] = await Promise.all([
+    const [cashRow, creditRow, cashFuture, creditFuture] = await Promise.all([
       getLastRowMapped('Cash'),
-      getLastRowMapped('Credit')
+      getLastRowMapped('Credit'),
+      getFutureSums('Cash').catch(() => null),
+      getFutureSums('Credit').catch(() => null)
     ]);
 
     balanceCache = { Cash: cashRow, Credit: creditRow };
+    futureCache = { Cash: cashFuture, Credit: creditFuture };
     balanceTs = Date.now();
     renderBalances();
   } catch (e) {
@@ -1588,11 +1669,23 @@ function renderBalances() {
   const mainEl = document.getElementById('balance-main');
   const expandEl = document.getElementById('balance-expand');
 
+  // Note under the toggle
+  const noteEl = document.getElementById('bal-note');
+  if (balMode === 'today') {
+    const ok = futureCache && futureCache.Cash && futureCache.Credit;
+    const n = ok ? futureCache.Cash.count + futureCache.Credit.count : 0;
+    const t = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    noteEl.textContent = !ok ? 'Couldn’t read dates, so showing all entered'
+      : n ? `As of ${t} · leaving out ${n} future-dated row${n > 1 ? 's' : ''}` : `As of ${t} · no future-dated rows`;
+  } else {
+    noteEl.textContent = 'Includes everything entered, future-dated rows too';
+  }
+
   // Render main balances + total
   let total = 0;
   let mainHtml = MAIN_BALANCES.map(b => {
     const row = balanceCache[b.sheet];
-    const val = row ? row[b.col] : null;
+    const val = row ? balValue(b.sheet, b.col, row[b.col]) : null;
     const num = typeof val === 'number' ? val : parseFloat(val);
     if (!isNaN(num)) total += num;
     return renderBalCard(b.col, val);
@@ -1609,7 +1702,7 @@ function renderBalances() {
     Object.entries(row).forEach(([col, val]) => {
       if (mainCols.includes(col) || BAL_SKIP_COLS.has(col.toLowerCase()) || BAL_HIDE[sheet]?.has(col.toLowerCase())) return;
       if (typeof val === 'number' || (typeof val === 'string' && !isNaN(parseFloat(val)) && val.trim() !== '')) {
-        otherCards.push(renderBalCard(sheet === 'Credit' ? `${col} (Credit)` : col, val));
+        otherCards.push(renderBalCard(sheet === 'Credit' ? `${col} (Credit)` : col, balValue(sheet, col, val)));
       }
     });
   });
