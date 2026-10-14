@@ -494,7 +494,7 @@
 <div class="config-panel" id="transfer-panel">
   <button class="config-close" onclick="closePanel('transfer-panel')">✕ close</button>
   <h2>Transfer</h2>
-  <p class="desc" style="margin-bottom:14px;">Moves money between Cash accounts and writes both rows.</p>
+  <p class="desc" style="margin-bottom:14px;">Moves money between Cash accounts and writes both rows. From HSA Reimb = Optum pays you back (also lowers HSA Reimb).</p>
   <div class="form-body" style="padding:0;">
     <div class="field-row">
       <div class="field"><label>From</label><select id="t-from" onchange="updateTransferPreview()"></select></div>
@@ -518,8 +518,8 @@
 
 const SHEETS = {
   Cash: {
-    methods: ['Checking','SavingsCO','Cash','Venmo','Savings','CheckingCO','SavingsF','Optum','Fidelity','PB (MYR)'],
-    methodToColumn: { 'Checking':'Checking','Savings':'Savings','CheckingCO':'CheckingCO','SavingsCO':'SavingsCO','SavingsF':'SavingsF','Optum':'Optum','Fidelity':'Fidelity','PB (MYR)':'PB (MYR)','Cash':'Cash','Venmo':'Venmo' }
+    methods: ['Checking','SavingsCO','Cash','Venmo','Savings','CheckingCO','SavingsF','Optum','HSA Reimb','Fidelity','PB (MYR)'],
+    methodToColumn: { 'Checking':'Checking','Savings':'Savings','CheckingCO':'CheckingCO','SavingsCO':'SavingsCO','SavingsF':'SavingsF','Optum':'Optum','HSA Reimb':'HSA Reimb','Fidelity':'Fidelity','PB (MYR)':'PB (MYR)','Cash':'Cash','Venmo':'Venmo' }
   },
   Credit: {
     methods: ['Discover','WF','Chase','Savor1'],
@@ -1141,7 +1141,8 @@ function queueEditForm(item) {
   const opts = list => [...new Set(list)].map(o => `<option value="${v(o)}">`).join('');
   const allSubs = Object.values(catSub).flat();
   return `<div class="qi-edit">
-    ${item.group ? `<div class="qi-note">🔗 Linked to ${item.group.n - 1} other row${item.group.n > 2 ? 's' : ''} entered together. Edits here don't change them, so update those too if needed.</div>` : ''}
+    ${item.group ? `<div class="qi-note">🔗 ${hsaLinkOf(item) ? `Its ${HSA} row updates to match when you save (or is removed if it's no longer a non-Optum Health expense).`
+      : `Linked to ${item.group.n - 1} other row${item.group.n > 2 ? 's' : ''} entered together. Edits here don't change them, so update those too if needed.`}</div>` : ''}
     <div class="field"><label>Table</label><select id="q-sheet" onchange="onEditSheetChange()">${Object.keys(SHEETS).map(s => `<option value="${s}"${s === item.sheet ? ' selected' : ''}>${s}</option>`).join('')}</select></div>
     <div class="field-row">
       <div class="field"><label>Date</label><input type="date" id="q-date" value="${v(p.date)}"></div>
@@ -1202,23 +1203,80 @@ function saveQueueEdit() {
   if (!SHEETS[sheet]) return showToast('Pick Credit or Cash', 'error');
   if (method && !SHEETS[sheet].methods.includes(method) &&
       !confirm(`"${method}" isn't an account in ${sheet}, so this cost won't count toward any ${sheet} balance.\n\nSave anyway?`)) return;
-  editingItem.sheet = sheet;
-  Object.assign(editingItem.payload, {
+  const item = editingItem;
+  item.sheet = sheet;
+  Object.assign(item.payload, {
     date, cost: round2(editNegative ? -Math.abs(amount) : Math.abs(amount)),
-    venue: val('q-venue'), activities: val('q-activities'), method: val('q-method'),
+    venue: val('q-venue'), activities: val('q-activities'), method,
     category: val('q-category'), sub: val('q-sub'), sub2: val('q-sub2'), sub3: val('q-sub3'), remarks: val('q-remarks')
   });
   editingItem = null;
+  let res = { msg: '✓ Updated', warn: false };
+  if (!item.hsa) res = syncHsaLink(item);
+  else { const parent = hsaParentOf(item); if (parent) parent.hsaLinked = { cost: item.payload.cost }; } // edited by hand
   saveQueue();
   renderQueueReview();
-  showToast('✓ Updated', 'success');
+  showToast(res.msg, res.warn ? 'error' : 'success');
+}
+
+// The pending HSA Reimb row linked to an expense (null if none, or already synced)
+function hsaLinkOf(item) {
+  return item.group ? queue.find(q => q.hsa && q !== item && q.group && q.group.id === item.group.id) || null : null;
+}
+// The pending expense an HSA Reimb row belongs to
+function hsaParentOf(link) {
+  return link.group ? queue.find(q => !q.hsa && q.hsaLinked && q.group && q.group.id === link.group.id) || null : null;
+}
+
+// Takes a row out of its link group, renumbering whatever is left
+function ungroup(item) {
+  if (!item.group) return;
+  const rest = queue.filter(q => q !== item && q.group && q.group.id === item.group.id);
+  delete item.group;
+  if (rest.length === 1) delete rest[0].group;
+  else rest.forEach((q, k) => (q.group = { ...q.group, i: k + 1, n: rest.length }));
+}
+
+// After an expense is edited, keep its HSA Reimb row matching (add / update / remove).
+// Returns the message to show; warn when the linked row already went to Excel and can't be changed here.
+function syncHsaLink(item) {
+  const link = hsaLinkOf(item);
+  const wants = needsHsaLink(item.payload);
+  if (link) {
+    if (wants) { Object.assign(link.payload, hsaLinkPayload({ ...item.payload, inputted: link.payload.inputted })); item.hsaLinked = { cost: link.payload.cost }; return { msg: `✓ Updated, ${HSA} row too`, warn: false }; }
+    ungroup(link); queue.splice(queue.indexOf(link), 1); delete item.hsaLinked;
+    return { msg: `✓ Updated, ${HSA} row removed`, warn: false };
+  }
+  // hsaLinked = what the linked row (already sent to Excel) holds
+  if (item.hsaLinked) {
+    if (!wants) return { msg: `✓ Updated · its ${HSA} row is already in Excel, remove it there`, warn: true };
+    if (round2(-item.payload.cost) !== item.hsaLinked.cost) return { msg: `✓ Updated · its ${HSA} row is already in Excel, update its cost there`, warn: true };
+    return { msg: '✓ Updated', warn: false };
+  }
+  if (!wants) return { msg: '✓ Updated', warn: false };
+  // Never had one: add it right after the expense
+  const id = item.group ? item.group.id : `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const newLink = { sheet: 'Cash', hsa: true, payload: hsaLinkPayload(item.payload), group: { id } };
+  queue.splice(queue.indexOf(item) + 1, 0, newLink);
+  if (!item.group) item.group = { id };
+  const members = queue.filter(q => q.group && q.group.id === id);
+  members.forEach((q, k) => (q.group = { id, i: k + 1, n: members.length }));
+  item.hsaLinked = { cost: newLink.payload.cost };
+  return { msg: `✓ Updated, ${HSA} row added`, warn: false };
 }
 
 function deleteQueueItem(idx) {
   if (isSyncing) { showToast('Wait for sync to finish', 'error'); return; }
-  queue.splice(idx, 1);
+  const item = queue[idx];
+  if (!item) return;
+  const link = item.hsa ? null : hsaLinkOf(item);
+  if (link) { ungroup(link); queue.splice(queue.indexOf(link), 1); }
+  if (item.hsa) { const parent = hsaParentOf(item); if (parent) delete parent.hsaLinked; } // you removed it on purpose
+  ungroup(item);
+  queue.splice(queue.indexOf(item), 1);
   saveQueue();
   renderQueueReview();
+  if (!link && item.hsaLinked) showToast(`Its ${HSA} row is already in Excel, remove it there`, 'error');
 }
 
 let isSyncing = false;
@@ -1368,12 +1426,32 @@ async function submitTransaction() {
     const l = fav.linked;
     rows.push({ sheet: l.sheet, payload: { date, venue: l.venue, activities: l.activities, method: l.method, category: l.category, sub: l.sub, sub2: '', sub3: '', cost: Math.abs(cost), remarks, inputted } });
   }
+  if (needsHsaLink(rows[0].payload)) {
+    const link = { sheet: 'Cash', hsa: true, payload: hsaLinkPayload(rows[0].payload) };
+    rows[0].hsaLinked = { cost: link.payload.cost };
+    rows.push(link);
+  }
 
   const btn = document.getElementById('btn-submit');
   btn.disabled = true; btn.classList.add('loading');
-  const done = await commitRows(rows, rows.length > 1 ? `to ${currentSheet} + ${fav.linked.sheet}` : `to ${currentSheet}`);
+  const label = rows.length === 1 ? `to ${currentSheet}`
+    : rows[1].hsa ? `to ${currentSheet} + ${HSA}` : `to ${currentSheet} + ${fav.linked.sheet}`;
+  const done = await commitRows(rows, label);
   if (done) { addHistory(venue, cost, category); resetForm(); }
   btn.disabled = false; btn.classList.remove('loading');
+}
+
+// ── HSA Reimb ────────────────────────────────────────────────────────────────
+// A Health expense paid by anything except Optum is owed back by Optum: a linked Cash row
+// (method HSA Reimb, negative cost) raises the HSA Reimb balance. Refunds reverse it.
+const HSA = 'HSA Reimb';
+const lc = s => String(s || '').trim().toLowerCase();
+function needsHsaLink(p) {
+  return lc(p.category) === 'health' && lc(p.method) !== 'optum' && lc(p.method) !== lc(HSA);
+}
+function hsaLinkPayload(p) {
+  return { date: p.date, venue: p.venue, activities: p.activities, method: HSA, category: '', sub: '', sub2: '', sub3: '',
+    cost: round2(-p.cost), remarks: p.remarks, inputted: p.inputted };
 }
 
 function addHistory(venue, cost, category, sheet = currentSheet, date = document.getElementById('f-date').value) {
@@ -1963,8 +2041,18 @@ function undoMonthly(key) {
 const ACCOUNT_VENUE = { Checking: 'Wells Fargo', Savings: 'Discover', CheckingCO: 'Capital One', SavingsCO: 'Capital One', SavingsF: 'Capital One', Optum: 'Optum', Fidelity: 'Fidelity', Venmo: 'Venmo', Cash: '' };
 const SAVINGS_ACCOUNTS = new Set(['Savings', 'SavingsCO', 'SavingsF', 'Fidelity']);
 let transferBusy = false;
+const transferProblem = (from, to) =>
+  from === to ? 'Pick two different accounts.' : from === HSA && to === 'Optum' ? 'Pay-back goes from Optum to another account.' : '';
+const needsCashVenue = (from, to) => from !== HSA && (from === 'Cash' || to === 'Cash');
 
+// Paying yourself back (From: HSA Reimb) = an Optum → To transfer, plus a row bringing HSA Reimb down.
+// All three rows get venue Optum.
 function transferRows(from, to, A, cashVenue, remarks) {
+  if (from === HSA) {
+    const rows = transferRows('Optum', to, A, cashVenue, remarks);
+    rows.forEach(r => (r.venue = 'Optum'));
+    return [...rows, mRow('Optum', rows[0].activities, HSA, '', '', A, remarks)];
+  }
   const fromSav = SAVINGS_ACCOUNTS.has(from), toSav = SAVINGS_ACCOUNTS.has(to);
   const activities = !fromSav && toSav ? 'Transfer (+savings)' : fromSav && !toSav ? 'Transfer (-savings)' : 'Transfer';
   const venue = acct => (acct === 'Cash' ? cashVenue : ACCOUNT_VENUE[acct]);
@@ -1975,9 +2063,12 @@ function transferRows(from, to, A, cashVenue, remarks) {
 }
 
 function openTransfer() {
-  const opts = Object.keys(ACCOUNT_VENUE).map(a => `<option value="${a}">${a}</option>`).join('');
+  const opts = list => list.map(a => `<option value="${a}">${a}</option>`).join('');
   const from = document.getElementById('t-from'), to = document.getElementById('t-to');
-  if (!from.options.length) { from.innerHTML = opts; to.innerHTML = opts; from.value = 'Venmo'; to.value = 'Checking'; }
+  if (!from.options.length) {
+    from.innerHTML = opts([...Object.keys(ACCOUNT_VENUE), HSA]); to.innerHTML = opts(Object.keys(ACCOUNT_VENUE));
+    from.value = 'Venmo'; to.value = 'Checking';
+  }
   document.getElementById('t-date').value = localDateStr(new Date());
   updateTransferPreview();
   document.getElementById('transfer-panel').classList.add('open');
@@ -1985,9 +2076,10 @@ function openTransfer() {
 
 function updateTransferPreview() {
   const from = document.getElementById('t-from').value, to = document.getElementById('t-to').value;
-  document.getElementById('t-cash-venue-wrap').style.display = (from === 'Cash' || to === 'Cash') ? '' : 'none';
+  document.getElementById('t-cash-venue-wrap').style.display = needsCashVenue(from, to) ? '' : 'none';
   const el = document.getElementById('t-preview');
-  if (from === to) { el.textContent = 'Pick two different accounts.'; return; }
+  const bad = transferProblem(from, to);
+  if (bad) { el.textContent = bad; return; }
   const A = parseMoneyInput(document.getElementById('t-amount').value);
   const rows = transferRows(from, to, isNaN(A) ? 0 : A, document.getElementById('t-cash-venue').value.trim(), '');
   el.innerHTML = rows.map(r => `${escHtml(r.venue || '—')} · ${escHtml(r.activities)} · ${escHtml(r.method)}${r.category ? ' · ' + r.category : ''} · ${r.cost < 0 ? '−' : '+'}$${fmtMoney(r.cost)}`).join('<br>');
@@ -1998,11 +2090,12 @@ async function commitTransfer() {
   const from = document.getElementById('t-from').value, to = document.getElementById('t-to').value;
   const A = parseMoneyInput(document.getElementById('t-amount').value);
   const date = document.getElementById('t-date').value;
-  if (from === to) return showToast('Pick two different accounts', 'error');
+  const bad = transferProblem(from, to);
+  if (bad) return showToast(bad, 'error');
   if (isNaN(A) || A <= 0) return showToast('Enter a valid amount', 'error');
   if (!date) return showToast('Date is required', 'error');
   const cashVenue = document.getElementById('t-cash-venue').value.trim();
-  if ((from === 'Cash' || to === 'Cash') && !cashVenue) return showToast('Enter who / where for the Cash side', 'error');
+  if (needsCashVenue(from, to) && !cashVenue) return showToast('Enter who / where for the Cash side', 'error');
 
   const inputted = nowStamp();
   const partial = transferRows(from, to, A, cashVenue, document.getElementById('t-remarks').value.trim());
