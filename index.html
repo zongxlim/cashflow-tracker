@@ -148,7 +148,14 @@
 
   /* Balance Dashboard */
   .balance-section { padding: 0 24px 20px; }
-  .balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .balance-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .balance-grid .half { grid-column: span 3; }
+  .balance-grid .third { grid-column: span 2; }
+  .balance-grid .bal-card { min-width: 0; }
+  .balance-grid .third { padding: 10px 8px; }
+  .balance-grid .third .bal-value { font-size: 12px; white-space: nowrap; }
+  .balance-grid .full { grid-column: 1 / -1; }
+  .balance-grid .bal-loading { grid-column: 1 / -1; }
   .bal-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
     padding: 10px 12px; display: flex; flex-direction: column; gap: 2px;
@@ -588,7 +595,10 @@ const MAIN_BALANCES = [
   { sheet: 'Credit', col: 'Discover' },
   { sheet: 'Credit', col: 'WF' },
   { sheet: 'Credit', col: 'Chase' },
-  { sheet: 'Credit', col: 'Savor1' }
+  { sheet: 'Credit', col: 'Savor1' },
+  { sheet: 'Cash', col: 'Checking' },
+  { sheet: 'Cash', col: 'Cash' },
+  { sheet: 'Cash', col: 'Venmo' }
 ];
 
 function saveCatSub() { localStorage.setItem('cf_cat_sub', JSON.stringify(catSub)); }
@@ -1681,17 +1691,18 @@ function renderBalances() {
     noteEl.textContent = 'Includes everything entered, future-dated rows too';
   }
 
-  // Render main balances + total
+  // Render main balances: credit cards, Total Credit (full row), then cash accounts
   let total = 0;
-  let mainHtml = MAIN_BALANCES.map(b => {
+  const card = b => {
     const row = balanceCache[b.sheet];
     const val = row ? balValue(b.sheet, b.col, row[b.col]) : null;
     const num = typeof val === 'number' ? val : parseFloat(val);
-    if (!isNaN(num)) total += num;
-    return renderBalCard(b.col, val);
-  }).join('');
-  mainHtml += renderBalCard('Total', total);
-  mainEl.innerHTML = mainHtml;
+    if (b.sheet === 'Credit' && !isNaN(num)) total += num;
+    return renderBalCard(b.col, val, b.sheet === 'Cash' ? 'third' : 'half');
+  };
+  const credit = MAIN_BALANCES.filter(b => b.sheet === 'Credit').map(card).join('');
+  const cash = MAIN_BALANCES.filter(b => b.sheet === 'Cash').map(card).join('');
+  mainEl.innerHTML = credit + renderBalCard('Total Credit', round2(total), 'full') + cash;
 
   // Render expanded (all other columns that are numeric)
   const otherCards = [];
@@ -1709,12 +1720,12 @@ function renderBalances() {
   expandEl.innerHTML = otherCards.join('');
 }
 
-function renderBalCard(label, val) {
+function renderBalCard(label, val, span) {
   const num = typeof val === 'number' ? val : parseFloat(val);
   const display = isNaN(num) ? '—' : '$' + fmtMoney(num);
   const cls = isNaN(num) ? 'zero' : (num > 0 ? 'positive' : (num < 0 ? 'negative' : 'zero'));
   const sign = isNaN(num) ? '' : (num < 0 ? '−' : '');
-  return `<div class="bal-card"><div class="bal-label">${escHtml(label)}</div><div class="bal-value ${cls}">${sign}${display}</div></div>`;
+  return `<div class="bal-card${span ? ' ' + span : ''}"><div class="bal-label">${escHtml(label)}</div><div class="bal-value ${cls}">${sign}${display}</div></div>`;
 }
 
 function toggleBalMore() {
