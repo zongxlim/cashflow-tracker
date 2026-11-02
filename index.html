@@ -170,6 +170,12 @@
   .bal-mode button.active { border-color: #fbbf24; color: #fbbf24; background: rgba(251,191,36,0.1); }
   .bal-note { font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin-bottom: 10px; }
   .bal-loading { color: var(--text-dim); font-family: var(--mono); font-size: 11px; }
+  .bal-left { font-family: var(--mono); font-size: 11px; }
+  .pay-amt { display: flex; gap: 6px; margin-top: 6px; }
+  .pay-amt button { flex: 1; padding: 6px 0; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); font-family: var(--mono); font-size: 11px; border-radius: 8px; cursor: pointer; }
+  .pay-amt button.active { border-color: #fbbf24; color: #fbbf24; background: rgba(251,191,36,0.1); }
+  .bal-left.due { color: #fbbf24; }
+  .bal-left.done { color: var(--text-muted); }
   .bal-expand { display: none; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .bal-expand.open { display: flex; }
   .bal-expand .bal-card { flex: 1; min-width: calc(50% - 4px); }
@@ -324,8 +330,9 @@
   <div class="balance-section" id="balance-section" style="display:none;">
     <div class="fav-label">Balances <span id="bal-refresh" onclick="loadBalances()" style="cursor:pointer;color:var(--accent);margin-left:8px;">↻</span></div>
     <div class="bal-mode">
-      <button id="bal-mode-today" class="active" onclick="setBalMode('today')">As of today</button>
-      <button id="bal-mode-all" onclick="setBalMode('all')">All entered</button>
+      <button id="bal-mode-today" class="active" onclick="setBalMode('today')">Today</button>
+      <button id="bal-mode-all" onclick="setBalMode('all')">All</button>
+      <button id="bal-mode-month" onclick="setBalMode('month')">Month-End</button>
     </div>
     <div class="bal-note" id="bal-note"></div>
     <div class="balance-grid" id="balance-main"></div>
@@ -352,7 +359,8 @@
   <div class="form-body" id="form-body">
     <div class="field-row">
       <div class="field"><label>Date <span class="required">*</span></label><input type="date" id="f-date"></div>
-      <div class="field"><label>Cost <span class="required">*</span></label><div class="cost-wrap"><span class="cost-sign" id="cost-sign" onclick="toggleCostSign()">+</span><input type="text" id="f-cost" inputmode="decimal" placeholder="0.00" onblur="formatCost()" onchange="formatCost()"></div></div>
+      <div class="field"><label>Cost <span class="required">*</span></label><div class="cost-wrap"><span class="cost-sign" id="cost-sign" onclick="toggleCostSign()">+</span><input type="text" id="f-cost" inputmode="decimal" placeholder="0.00" onblur="formatCost()" onchange="formatCost()"></div>
+        <div class="pay-amt" id="pay-amt" style="display:none;"><button id="pay-amt-month" class="active" onclick="setPayAmount('month')">Month-End</button><button id="pay-amt-today" onclick="setPayAmount('today')">Today</button></div></div>
     </div>
     <div class="field"><label>Venue</label><input type="text" id="f-venue" placeholder="Where / who" autocapitalize="words"></div>
     <div class="field"><label>Activities</label><input type="text" id="f-activities" placeholder="What for"></div>
@@ -518,12 +526,10 @@
 
 const SHEETS = {
   Cash: {
-    methods: ['Checking','SavingsCO','Cash','Venmo','Savings','CheckingCO','SavingsF','Optum','HSA Reimb','Fidelity','PB (MYR)'],
-    methodToColumn: { 'Checking':'Checking','Savings':'Savings','CheckingCO':'CheckingCO','SavingsCO':'SavingsCO','SavingsF':'SavingsF','Optum':'Optum','HSA Reimb':'HSA Reimb','Fidelity':'Fidelity','PB (MYR)':'PB (MYR)','Cash':'Cash','Venmo':'Venmo' }
+    methods: ['Checking','SavingsCO','Cash','Venmo','Savings','CheckingCO','SavingsF','Optum','HSA Reimb','Fidelity','PB (MYR)']
   },
   Credit: {
-    methods: ['Discover','WF','Chase','Savor1'],
-    methodToColumn: { 'Discover':'Discover','WF':'WF','Chase':'Chase','Savor1':'Savor1' }
+    methods: ['Discover','WF','Chase','Savor1']
   }
 };
 
@@ -561,16 +567,18 @@ const FAVORITES_DEFAULT = [
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-let catSub = JSON.parse(localStorage.getItem('cf_cat_sub') || 'null') || JSON.parse(JSON.stringify(CAT_SUB_DEFAULT));
+// Reads saved JSON; a damaged value falls back instead of stopping the app
+function readJSON(key, fallback) {
+  try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return v == null ? fallback : v; } catch (e) { return fallback; }
+}
+let catSub = readJSON('cf_cat_sub', null) || JSON.parse(JSON.stringify(CAT_SUB_DEFAULT));
 let favorites = loadFavorites();
 
 function loadFavorites() {
   const clone = o => JSON.parse(JSON.stringify(o));
-  let stored = null;
-  try { stored = JSON.parse(localStorage.getItem('cf_favorites') || 'null'); } catch (e) {}
+  const stored = readJSON('cf_favorites', null);
   if (!Array.isArray(stored)) return clone(FAVORITES_DEFAULT);
-  let deleted = [];
-  try { deleted = JSON.parse(localStorage.getItem('cf_fav_deleted') || '[]'); } catch (e) {}
+  const deleted = readJSON('cf_fav_deleted', []);
   const skip = new Set([...stored.map(f => f.label), ...deleted]);
   FAVORITES_DEFAULT.forEach(d => { if (!skip.has(d.label)) stored.push(clone(d)); });
   // Code order wins; favorites not in the code (e.g. renamed) stay at the end in their saved order
@@ -578,8 +586,8 @@ function loadFavorites() {
   return stored.sort((a, b) => (order.has(a.label) ? order.get(a.label) : 1e9) - (order.has(b.label) ? order.get(b.label) : 1e9));
 }
 let currentSheet = 'Cash';
-let history = JSON.parse(localStorage.getItem('cf_history') || '[]');
-let queue = JSON.parse(localStorage.getItem('cf_queue') || '[]');
+let history = readJSON('cf_history', []);
+let queue = readJSON('cf_queue', []);
 // An item still marked "sending" means the app closed mid-request: it may or may not be in Excel
 if (queue.some(i => i.sending)) {
   queue.forEach(i => { if (i.sending) { delete i.sending; i.uncertain = true; } });
@@ -760,8 +768,14 @@ async function fetchColumns(base, tableName, token) {
   return { cols: (await res.json()).value.map(c => c.name) };
 }
 
-async function getTableColumns(tableName) {
-  if (columnCache[tableName]) return columnCache[tableName];
+// Concurrent callers for the same table share one request
+const columnPending = {};
+function getTableColumns(tableName) {
+  if (columnCache[tableName]) return Promise.resolve(columnCache[tableName]);
+  if (!columnPending[tableName]) columnPending[tableName] = loadTableColumns(tableName).finally(() => delete columnPending[tableName]);
+  return columnPending[tableName];
+}
+async function loadTableColumns(tableName) {
   const token = await getToken();
   if (!token) return null;
   const base = workbookBase();
@@ -945,7 +959,7 @@ function switchSheet(sheet) {
 
   formWrapper.style.display = '';
   balSection.style.display = 'none';
-  currentSheet = sheet; activeFav = null;
+  currentSheet = sheet; activeFav = null; showPayAmt(false);
   document.getElementById('cash-tools').style.display = sheet === 'Cash' ? '' : 'none';
   const btn = document.getElementById('btn-submit');
   btn.dataset.sheet = sheet;
@@ -991,17 +1005,10 @@ function applyFav(idx) {
   document.getElementById('f-remarks').value = f.remarks || '';
   // Auto-fill cost from Excel balance for Pay favorites
   if (f.autoFillCol) {
-    document.getElementById('f-cost').value = '';
     costNegative = true;
-    document.getElementById('cost-sign').textContent = '\u2212';
-    document.getElementById('cost-sign').classList.add('negative');
-    getColumnBalance('Credit', f.autoFillCol).then(val => {
-      if (activeFav !== idx) return; // user moved on (reset / other favorite)
-      const num = typeof val === 'number' ? val : parseFloat(val);
-      if (isFinite(num)) document.getElementById('f-cost').value = fmtMoney(num);
-      document.getElementById('f-cost').focus();
-    });
+    setPayAmount('month');
   } else {
+    showPayAmt(false);
     document.getElementById('f-cost').value = f.cost ? fmtMoney(f.cost) : '';
     costNegative = f.cost < 0 || !!f.negativeDefault;
   }
@@ -1032,7 +1039,7 @@ function onMethodChange() {
   const ci = document.getElementById('f-method-custom');
   const preview = document.getElementById('account-preview');
   if (sel.value === '__other__') { ci.classList.add('visible'); if (!ci.value) ci.focus(); preview.innerHTML = '<span style="color:var(--text-dim)">custom method</span>'; }
-  else { ci.classList.remove('visible'); ci.value = ''; const col = SHEETS[currentSheet].methodToColumn[sel.value]; preview.innerHTML = col ? `<span class="account-pill">${col}</span>` : '<span style="color:var(--text-dim)">select method first</span>'; }
+  else { ci.classList.remove('visible'); ci.value = ''; const col = SHEETS[currentSheet].methods.includes(sel.value) ? escHtml(sel.value) : ''; preview.innerHTML = col ? `<span class="account-pill">${col}</span>` : '<span style="color:var(--text-dim)">select method first</span>'; }
 }
 
 function buildCategoryDropdown() {
@@ -1471,6 +1478,7 @@ function resetForm() {
   document.getElementById('f-category').value = '';
   ['f-method-custom','f-category-custom','f-sub-custom'].forEach(id => document.getElementById(id).classList.remove('visible'));
   activeFav = null;
+  showPayAmt(false);
   document.querySelectorAll('.fav-chip').forEach(c => c.classList.remove('active'));
   onMethodChange(); onCategoryChange();
 }
@@ -1554,6 +1562,7 @@ function restoreFormDraft() {
     activeFav = draft.activeFav;
     const chip = document.querySelector(`.fav-chip[data-idx="${draft.activeFav}"]`);
     if (chip) chip.classList.add('active');
+    if (favorites[activeFav].autoFillCol) showPayAmt(true); // keeps your restored amount
   }
 
   showToast('Restored your unsaved entry', 'success');
@@ -1624,7 +1633,7 @@ function editFav(i) {
 
 function deleteFav(i) {
   if (!confirm(`Delete "${favorites[i].label}"?`)) return;
-  const deleted = JSON.parse(localStorage.getItem('cf_fav_deleted') || '[]');
+  const deleted = readJSON('cf_fav_deleted', []);
   deleted.push(favorites[i].label);
   localStorage.setItem('cf_fav_deleted', JSON.stringify(deleted));
   favorites.splice(i, 1); saveFavorites(); renderFavManager(); renderFavChips(); showToast('Deleted', 'success');
@@ -1684,10 +1693,8 @@ async function getLastRow(tableName) {
 async function getLastRowMapped(sheetKey) {
   const tableName = localStorage.getItem(`cf_table_${sheetKey.toLowerCase()}`);
   if (!tableName) return null;
-  const cols = await getTableColumns(tableName);
-  if (!cols) return null;
-  const vals = await getLastRow(tableName);
-  if (!vals) return null;
+  const [cols, vals] = await Promise.all([getTableColumns(tableName), getLastRow(tableName)]);
+  if (!cols || !vals) return null;
   const map = {};
   cols.forEach((c, i) => { map[c] = vals[i]; });
   return map;
@@ -1699,7 +1706,7 @@ const BAL_DIRECTION = { Cash: -1, Credit: 1 };
 // Columns that are sums of other accounts, not running balances
 const BAL_DERIVED = { Cash: { 'COne Savings': ['SavingsCO', 'SavingsF', 'SavingsFL'] } };
 let balMode = 'today';
-let futureCache = null; // { Cash: { sums: {method: total}, count }, Credit: … }
+let futureCache = null; // per table: { sums, count, after, credits, cutoff } (see getFutureSums)
 
 function excelSerial(y, m, d) { return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 864e5); }
 function cellToSerial(v) {
@@ -1713,7 +1720,7 @@ function cellToSerial(v) {
   return excelSerial(d.getFullYear(), d.getMonth() + 1, d.getDate());
 }
 
-// Sums the costs of rows dated after today, per method (case-insensitive, like Excel's =)
+// Reads Date/Method/Cost and sums costs per method (case-insensitive, like Excel's =) for the Today and Month-End views
 async function getFutureSums(sheetKey) {
   const tableName = localStorage.getItem(`cf_table_${sheetKey.toLowerCase()}`);
   const base = workbookBase();
@@ -1730,16 +1737,40 @@ async function getFutureSums(sheetKey) {
   const [dates, methods, costs] = await Promise.all(names.map(get));
   if (!dates || !methods || !costs) return null;
   const t = new Date(); const today = excelSerial(t.getFullYear(), t.getMonth() + 1, t.getDate());
-  const sums = {}; let count = 0;
+  const cutoff = monthEndSerial();
+  const monthEnd = excelSerial(t.getFullYear(), t.getMonth() + 2, 0); // last day of this month
+  // sums/count: rows after today (for "As of today")
+  // after: every row after last month end (to rewind the balance to that day)
+  // credits: negative rows dated this month — they pay last month's bill. Decided: scheduled payments
+  // later this month count as soon as they're logged; ones dated next month count toward next month's bill.
+  const sums = {}, after = {}, credits = {}; let count = 0;
   dates.forEach((d, i) => {
     const serial = cellToSerial(d);
     const cost = typeof costs[i] === 'number' ? costs[i] : parseFloat(costs[i]);
-    if (serial === null || serial <= today || isNaN(cost)) return;
+    if (serial === null || serial <= cutoff || isNaN(cost)) return;
     const m = String(methods[i] || '').trim().toLowerCase();
     if (!m) return;
-    sums[m] = (sums[m] || 0) + cost; count++;
+    after[m] = (after[m] || 0) + cost;
+    if (cost < 0 && serial <= monthEnd) credits[m] = (credits[m] || 0) + cost;
+    if (serial > today) { sums[m] = (sums[m] || 0) + cost; count++; }
   });
-  return { sums, count };
+  return { sums, count, after, credits, cutoff };
+}
+
+// Last day of last month, as an Excel date (e.g. Oct 31 all through November)
+function monthEndDate() { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), 0); }
+function monthEndSerial() { const d = monthEndDate(); return excelSerial(d.getFullYear(), d.getMonth() + 1, d.getDate()); }
+
+// Credit card bill as of last month end:
+// owed = balance on that day; left = owed minus this month's credits (payments, cash back, refunds, incl. scheduled)
+function billFor(col) {
+  const row = balanceCache && balanceCache.Credit;
+  const f = futureCache && futureCache.Credit;
+  const raw = row ? parseFloat(row[col]) : NaN;
+  if (!f || isNaN(raw)) return null;
+  const m = col.trim().toLowerCase();
+  const owed = round2(raw - (f.after[m] || 0));
+  return { owed, left: round2(owed + (f.credits[m] || 0)) };
 }
 
 // Balance shown for a column in the current mode
@@ -1757,8 +1788,11 @@ function balValue(sheet, col, raw) {
 
 function setBalMode(mode) {
   balMode = mode;
-  document.getElementById('bal-mode-today').classList.toggle('active', mode === 'today');
-  document.getElementById('bal-mode-all').classList.toggle('active', mode === 'all');
+  ['today', 'all', 'month'].forEach(m => document.getElementById(`bal-mode-${m}`).classList.toggle('active', mode === m));
+  // Month-End is credit cards only
+  const more = mode === 'month' ? 'none' : '';
+  document.getElementById('bal-more-toggle').style.display = more;
+  document.getElementById('balance-expand').style.display = more;
   renderBalances();
 }
 
@@ -1797,6 +1831,12 @@ function renderBalances() {
 
   // Note under the toggle
   const noteEl = document.getElementById('bal-note');
+  if (balMode === 'month') {
+    const d = monthEndDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    noteEl.textContent = `Bill as of ${d} · left = after this month’s payments, cash back & refunds`;
+    mainEl.innerHTML = renderBill();
+    return;
+  }
   if (balMode === 'today') {
     const ok = futureCache && futureCache.Cash && futureCache.Credit;
     const n = ok ? futureCache.Cash.count + futureCache.Credit.count : 0;
@@ -1836,12 +1876,27 @@ function renderBalances() {
   expandEl.innerHTML = otherCards.join('');
 }
 
-function renderBalCard(label, val, span) {
+// Month-End view: each card's bill with what's left, plus a Total
+function renderBill() {
+  const cards = MAIN_BALANCES.filter(b => b.sheet === 'Credit');
+  const bills = cards.map(b => ({ col: b.col, bill: billFor(b.col) }));
+  if (bills.some(x => !x.bill)) return '<div class="bal-loading">Couldn’t read dates, so the month-end bill isn’t available</div>';
+  const leftText = left => left > 0 ? `left $${fmtMoney(left)}` : left < 0 ? `overpaid $${fmtMoney(left)}` : 'paid ✓';
+  const leftCls = left => left > 0 ? 'due' : 'done';
+  let owed = 0, left = 0;
+  const html = bills.map(({ col, bill }) => {
+    owed += bill.owed; left += Math.max(bill.left, 0); // an overpaid card doesn't pay off another one
+    return renderBalCard(col, bill.owed, 'half', `<div class="bal-left ${leftCls(bill.left)}">${leftText(bill.left)}</div>`);
+  }).join('');
+  return html + renderBalCard('Total', round2(owed), 'full', `<div class="bal-left ${leftCls(round2(left))}">${leftText(round2(left))}</div>`);
+}
+
+function renderBalCard(label, val, span, extra = '') {
   const num = typeof val === 'number' ? val : parseFloat(val);
   const display = isNaN(num) ? '—' : '$' + fmtMoney(num);
   const cls = isNaN(num) ? 'zero' : (num > 0 ? 'positive' : (num < 0 ? 'negative' : 'zero'));
   const sign = isNaN(num) ? '' : (num < 0 ? '−' : '');
-  return `<div class="bal-card${span ? ' ' + span : ''}"><div class="bal-label">${escHtml(label)}</div><div class="bal-value ${cls}">${sign}${display}</div></div>`;
+  return `<div class="bal-card${span ? ' ' + span : ''}"><div class="bal-label">${escHtml(label)}</div><div class="bal-value ${cls}">${sign}${display}</div>${extra}</div>`;
 }
 
 function toggleBalMore() {
@@ -1849,16 +1904,45 @@ function toggleBalMore() {
   document.getElementById('balance-expand').classList.toggle('open');
 }
 
-async function getColumnBalance(sheetKey, colName) {
-  if (balanceCache && balanceCache[sheetKey] && (Date.now() - balanceTs < 300000)) {
-    return balanceCache[sheetKey][colName];
+// Pay favorites: Month-End = what's left on last month's bill; Today = everything owed as of today.
+// If dates can't be read, both fall back to the latest balance. Never below 0.
+async function getPayAmount(col, kind) {
+  const fresh = balanceCache && balanceCache.Credit && futureCache && futureCache.Credit
+    && futureCache.Credit.cutoff === monthEndSerial() && Date.now() - balanceTs < 300000;
+  if (!fresh) {
+    const [row, fut] = await Promise.all([getLastRowMapped('Credit'), getFutureSums('Credit').catch(() => null)]);
+    if (!row) return null;
+    balanceCache = { ...(balanceCache || {}), Credit: row };
+    futureCache = { ...(futureCache || {}), Credit: fut };
+    balanceTs = Date.now();
   }
-  const row = await getLastRowMapped(sheetKey);
-  if (!row) return null;
-  if (!balanceCache) balanceCache = {};
-  balanceCache[sheetKey] = row;
-  balanceTs = Date.now();
-  return row[colName];
+  const raw = parseFloat(balanceCache.Credit[col]);
+  const f = futureCache.Credit;
+  if (isNaN(raw)) return null;
+  if (!f) return Math.max(raw, 0);
+  if (kind === 'today') return Math.max(round2(raw - (f.sums[col.trim().toLowerCase()] || 0)), 0);
+  return Math.max(billFor(col).left, 0);
+}
+
+let payKind = 'month';
+function showPayAmt(show) {
+  document.getElementById('pay-amt').style.display = show ? '' : 'none';
+  if (!show) payKind = 'month';
+  ['month', 'today'].forEach(k => document.getElementById(`pay-amt-${k}`).classList.toggle('active', payKind === k));
+}
+// Fills the cost for the active Pay favorite with the chosen amount
+function setPayAmount(kind) {
+  const idx = activeFav, f = idx !== null ? favorites[idx] : null;
+  if (!f || !f.autoFillCol) return;
+  payKind = kind; showPayAmt(true);
+  const cost = document.getElementById('f-cost');
+  cost.value = '';
+  getPayAmount(f.autoFillCol, kind).then(val => {
+    if (activeFav !== idx || payKind !== kind) return; // moved on meanwhile
+    const num = typeof val === 'number' ? val : parseFloat(val);
+    if (isFinite(num)) cost.value = fmtMoney(num);
+    cost.focus();
+  });
 }
 
 // ── Monthly (Cash) ───────────────────────────────────────────────────────────
@@ -1890,8 +1974,7 @@ const MONTHLY_ITEMS = [
       mRow('Fidelity', 'Fidelity', 'Fidelity', '', '', -A)] },
 ];
 
-let monthly = {};
-try { monthly = JSON.parse(localStorage.getItem('cf_monthly') || '{}') || {}; } catch (e) { monthly = {}; }
+let monthly = readJSON('cf_monthly', {});
 let viewMonth = null;
 let expandedMonthly = null;
 let monthlyBusy = false;
