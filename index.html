@@ -268,6 +268,7 @@
   .history-item .hi-amount { font-family: var(--mono); font-size: 14px; font-weight: 500; }
   .history-item.sheet-Cash .hi-amount { color: var(--cash-color); }
   .history-item.sheet-Credit .hi-amount { color: var(--credit-color); }
+  .history-item.sheet-Retire .hi-amount, .queue-item.sheet-Retire .qi-amount { color: var(--text-muted); }
 
   .cat-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
   .cat-row.expanded { border-color: var(--accent); }
@@ -459,6 +460,10 @@
     <label>Credit table name</label>
     <input type="text" id="cfg-credit-table" placeholder="CreditTable">
   </div>
+  <div class="config-field">
+    <label>Retire table name</label>
+    <input type="text" id="cfg-retire-table" placeholder="RetireTable">
+  </div>
 
   <button class="config-save" onclick="saveConfig()">Save</button>
 
@@ -530,8 +535,15 @@ const SHEETS = {
   },
   Credit: {
     methods: ['Discover','WF','Chase','Savor1']
+  },
+  // Written only by Monthly (TIAA 403(b)); no entry tab, no balances
+  Retire: {
+    methods: ['403b']
   }
 };
+const FORM_SHEETS = ['Cash', 'Credit'];
+// Excel table for each sheet, from ⚙ setup (Retire falls back to RetireTable if left blank)
+const tableFor = sheet => localStorage.getItem(`cf_table_${sheet.toLowerCase()}`) || (sheet === 'Retire' ? 'RetireTable' : null);
 
 const CAT_SUB_DEFAULT = {
   'F&D':['Groceries','Out','Caffeine'],
@@ -797,7 +809,7 @@ async function warmUp() {
   if (!msalInstance || !navigator.onLine || busySending() || Date.now() - lastWarmUp < 60000) return;
   const accounts = msalInstance.getAllAccounts();
   const base = workbookBase();
-  const tables = ['cash', 'credit'].map(k => localStorage.getItem(`cf_table_${k}`)).filter(Boolean);
+  const tables = FORM_SHEETS.map(tableFor).filter(Boolean); // Retire syncs rarely, so it isn't warmed
   if (!accounts.length || !base || !tables.length) return;
   lastWarmUp = Date.now();
   try {
@@ -858,7 +870,7 @@ async function addRowsToExcel(sheetKey, payloads, onBeforeSend, sessionId) {
   if (!token) return 'failed';
 
   const base = workbookBase();
-  const tableName = localStorage.getItem(`cf_table_${sheetKey.toLowerCase()}`);
+  const tableName = tableFor(sheetKey);
   if (!base || !tableName) {
     showToast('Set file path and table names in ⚙ setup', 'error');
     return 'failed';
@@ -1207,7 +1219,7 @@ function saveQueueEdit() {
   if (isNaN(amount)) return showToast('Enter a valid cost', 'error');
   const sheet = val('q-sheet');
   const method = val('q-method');
-  if (!SHEETS[sheet]) return showToast('Pick Credit or Cash', 'error');
+  if (!SHEETS[sheet]) return showToast('Pick a table', 'error');
   if (method && !SHEETS[sheet].methods.includes(method) &&
       !confirm(`"${method}" isn't an account in ${sheet}, so this cost won't count toward any ${sheet} balance.\n\nSave anyway?`)) return;
   const item = editingItem;
@@ -1330,7 +1342,7 @@ async function syncQueue() {
   const batches = batchBySheet(pending);
   // Setup in parallel: open a session (only pays off with more than one request) and look up
   // each table's columns. Writes below still go one at a time.
-  const tableNames = [...new Set(batches.map(b => localStorage.getItem(`cf_table_${b.sheet.toLowerCase()}`)).filter(Boolean))];
+  const tableNames = [...new Set(batches.map(b => tableFor(b.sheet)).filter(Boolean))];
   const [sessionId] = await Promise.all([
     batches.length > 1 ? openWorkbookSession() : null,
     ...tableNames.map(t => getTableColumns(t).catch(() => null))
@@ -1583,8 +1595,7 @@ function renderHistory() {
 function openConfig() {
   document.getElementById('cfg-client-id').value = localStorage.getItem('cf_client_id') || '';
   document.getElementById('cfg-file-path').value = localStorage.getItem('cf_file_path') || '';
-  document.getElementById('cfg-cash-table').value = localStorage.getItem('cf_table_cash') || '';
-  document.getElementById('cfg-credit-table').value = localStorage.getItem('cf_table_credit') || '';
+  Object.keys(SHEETS).forEach(k => (document.getElementById(`cfg-${k.toLowerCase()}-table`).value = localStorage.getItem(`cf_table_${k.toLowerCase()}`) || ''));
   renderCatManager(); renderFavManager();
   document.getElementById('config-panel').classList.add('open');
 }
@@ -1594,12 +1605,12 @@ function saveConfig() {
   if (busySending()) return showToast('Wait for sync to finish', 'error');
   const clientId = document.getElementById('cfg-client-id').value.trim();
   const filePath = document.getElementById('cfg-file-path').value.trim();
-  const cashTable = document.getElementById('cfg-cash-table').value.trim();
-  const creditTable = document.getElementById('cfg-credit-table').value.trim();
   if (clientId) localStorage.setItem('cf_client_id', clientId);
   if (filePath) localStorage.setItem('cf_file_path', filePath);
-  if (cashTable) localStorage.setItem('cf_table_cash', cashTable);
-  if (creditTable) localStorage.setItem('cf_table_credit', creditTable);
+  Object.keys(SHEETS).forEach(k => {
+    const name = document.getElementById(`cfg-${k.toLowerCase()}-table`).value.trim();
+    if (name) localStorage.setItem(`cf_table_${k.toLowerCase()}`, name);
+  });
   columnCache = {}; // clear cache on config change
   if (clientId && !msalInstance) initMsal();
   showToast('✓ Settings saved', 'success');
@@ -1625,7 +1636,7 @@ function editFav(i) {
   const sub = prompt('Sub:', f.sub); if (sub === null) return;
   const costStr = prompt('Cost (0 for variable):', f.cost); if (costStr === null) return;
   const sheetIn = prompt('Sheet (Cash/Credit):', f.sheet); if (sheetIn === null) return;
-  const sheet = Object.keys(SHEETS).find(s => s.toLowerCase() === sheetIn.trim().toLowerCase());
+  const sheet = FORM_SHEETS.find(s => s.toLowerCase() === sheetIn.trim().toLowerCase());
   if (!sheet) return showToast('Sheet must be Cash or Credit — not saved', 'error');
   favorites[i] = { ...f, label, venue, activities, method, category, sub, cost: parseFloat(costStr) || 0, sheet };
   saveFavorites(); renderFavManager(); renderFavChips(); showToast(`"${label}" updated`, 'success');
@@ -1691,7 +1702,7 @@ async function getLastRow(tableName) {
 }
 
 async function getLastRowMapped(sheetKey) {
-  const tableName = localStorage.getItem(`cf_table_${sheetKey.toLowerCase()}`);
+  const tableName = tableFor(sheetKey);
   if (!tableName) return null;
   const [cols, vals] = await Promise.all([getTableColumns(tableName), getLastRow(tableName)]);
   if (!cols || !vals) return null;
@@ -1722,7 +1733,7 @@ function cellToSerial(v) {
 
 // Reads Date/Method/Cost and sums costs per method (case-insensitive, like Excel's =) for the Today and Month-End views
 async function getFutureSums(sheetKey) {
-  const tableName = localStorage.getItem(`cf_table_${sheetKey.toLowerCase()}`);
+  const tableName = tableFor(sheetKey);
   const base = workbookBase();
   if (!tableName || !base) return null;
   const cols = await getTableColumns(tableName);
@@ -1972,7 +1983,15 @@ const MONTHLY_ITEMS = [
   { key: 'fidelity',    label: 'Fidelity',                 due: 'next2', def: 650,     rows: A => [
       mRow('Wells Fargo', 'Fidelity', 'Checking', 'Savings', '', A),
       mRow('Fidelity', 'Fidelity', 'Fidelity', '', '', -A)] },
+  // Goes to RetireTable. Two amounts; Date stays month end, "Received" (optional) goes in Remarks.
+  { key: 'retire',      label: 'TIAA 403(b)',              due: 'eom',   sheet: 'Retire', received: true,
+    parts: [{ label: 'Carleton', def: 833.34 }, { label: 'Personal', def: 166.67 }],
+    rows: ([carleton, personal], remarks) => [
+      mRow('TIAA', '403(b) Carleton Contribution', '403b', '', '', -carleton, remarks),
+      mRow('TIAA', '403(b) Personal Contribution', '403b', '', '', -personal, remarks)] },
 ];
+// Default shown before an item is entered (multi-amount items: their sum)
+const monthlyDefault = item => item.parts ? round2(item.parts.reduce((s, p) => s + p.def, 0)) : item.def;
 
 let monthly = readJSON('cf_monthly', {});
 let viewMonth = null;
@@ -1983,7 +2002,7 @@ function saveMonthly() { localStorage.setItem('cf_monthly', JSON.stringify(month
 function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
 function defaultMonthKey() {
   const t = new Date();
-  return monthKey(t.getDate() <= 5 ? new Date(t.getFullYear(), t.getMonth() - 1, 1) : t);
+  return monthKey(t.getDate() <= 8 ? new Date(t.getFullYear(), t.getMonth() - 1, 1) : t); // through the 8th, open last month
 }
 function monthDueDate(key, due) {
   const [y, m] = key.split('-').map(Number);
@@ -2050,16 +2069,19 @@ function renderMonthly() {
     const done = rec[item.key];
     const open = expandedMonthly === item.key;
     const meta = done ? `$${fmtMoney(done.amount)} · ${shortDate(done.date)}`
-                      : `${item.def !== undefined ? '$' + fmtMoney(item.def) + ' · ' : ''}due ${shortDate(monthDueDate(viewMonth, item.due))}`;
+                      : `${monthlyDefault(item) !== undefined ? '$' + fmtMoney(monthlyDefault(item)) + ' · ' : ''}due ${shortDate(monthDueDate(viewMonth, item.due))}`;
     let body = '';
     if (open && done) {
       body = `<div class="m-body"><button class="m-undo" onclick="undoMonthly('${item.key}')">Undo checkmark (does not remove rows from Excel)</button></div>`;
     } else if (open) {
-      const val = item.def !== undefined ? fmtMoney(item.def) : '';
+      const amt = (id, label, def) => `<div class="field"><label>${escHtml(label)}</label><input type="text" id="${id}" inputmode="decimal" placeholder="0.00" value="${def !== undefined ? fmtMoney(def) : ''}" onblur="formatMoneyInput(this)"></div>`;
+      const amounts = item.parts ? item.parts.map((p, k) => amt(`m-amt-${k}`, p.label, p.def)).join('') : amt('m-amt', 'Amount', item.def);
       body = `<div class="m-body">
+        ${item.parts ? `<div class="field-row">${amounts}</div>` : ''}
         <div class="field-row">
-          <div class="field"><label>Amount</label><input type="text" id="m-amt" inputmode="decimal" placeholder="0.00" value="${val}" onblur="formatMoneyInput(this)"></div>
+          ${item.parts ? '' : amounts}
           <div class="field"><label>Date</label><input type="date" id="m-date" value="${monthDueDate(viewMonth, item.due)}"></div>
+          ${item.received ? '<div class="field"><label>Received (optional)</label><input type="date" id="m-received"></div>' : ''}
         </div>
         <button class="btn-sync-all" style="margin-top:0;" onclick="commitMonthly('${item.key}')">Add</button>
       </div>`;
@@ -2076,13 +2098,20 @@ function renderMonthly() {
 async function commitMonthly(key) {
   if (monthlyBusy) return;
   const item = MONTHLY_ITEMS.find(i => i.key === key);
-  const A = parseMoneyInput(document.getElementById('m-amt').value);
+  const read = id => parseMoneyInput(document.getElementById(id).value);
+  const parts = item.parts ? item.parts.map((p, k) => read(`m-amt-${k}`)) : null;
+  const A = parts ? round2(parts.reduce((s, v) => s + v, 0)) : read('m-amt');
   const date = document.getElementById('m-date').value;
-  if (isNaN(A) || A < 0) return showToast('Enter a valid amount', 'error');
+  if (isNaN(A) || A < 0 || (parts && parts.some(v => isNaN(v) || v < 0))) return showToast('Enter a valid amount', 'error');
   if (!date) return showToast('Date is required', 'error');
   if (item.min !== undefined && A < item.min) return showToast(`Must be at least $${fmtMoney(item.min)}`, 'error');
+  let remarks = '';
+  if (item.received) {
+    const r = document.getElementById('m-received').value;
+    if (r) { const [y, m, d] = r.split('-').map(Number); remarks = `Received ${new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`; }
+  }
 
-  const partial = item.rows(A);
+  const partial = parts ? item.rows(parts, remarks) : item.rows(A);
   // If this is the last of the four apartment bills, its row carries the month's totals
   if (APARTMENT_KEYS.includes(key)) {
     const rec = monthly[viewMonth] || {};
@@ -2096,7 +2125,8 @@ async function commitMonthly(key) {
   }
 
   const inputted = nowStamp();
-  const rows = partial.map(p => ({ sheet: 'Cash', payload: { date, ...p, inputted } }));
+  const sheet = item.sheet || 'Cash';
+  const rows = partial.map(p => ({ sheet, payload: { date, ...p, inputted } }));
   monthlyBusy = true;
   const ok = await commitRows(rows, `— ${item.label}`);
   monthlyBusy = false;
@@ -2105,7 +2135,7 @@ async function commitMonthly(key) {
   monthly[viewMonth] = monthly[viewMonth] || {};
   monthly[viewMonth][key] = { amount: A, date };
   saveMonthly();
-  addHistory(item.label, rows[0].payload.cost < 0 ? -A : A, '', 'Cash', date);
+  addHistory(item.label, rows[0].payload.cost < 0 ? -A : A, '', sheet, date);
   expandedMonthly = null;
   renderMonthly();
 }
