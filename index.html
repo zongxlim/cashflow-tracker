@@ -536,7 +536,7 @@ const SHEETS = {
     methods: ['Venmo','Checking','SavingsCO','Cash','Savings','CheckingCO','SavingsF','Optum','HSA Reimb','Fidelity','PB (MYR)']
   },
   Credit: {
-    methods: ['Discover','WF','Chase','Savor1']
+    methods: ['Discover','WF','Chase','Savor1','DeltaAmexGold']
   },
   // Written only by Monthly (TIAA 403(b)); no entry tab, no balances
   Retire: {
@@ -621,11 +621,9 @@ let columnCache = {};
 let balanceCache = null;
 let balanceTs = 0;
 
+// Every credit card (from the Credit methods list), then the main cash accounts
 const MAIN_BALANCES = [
-  { sheet: 'Credit', col: 'Discover' },
-  { sheet: 'Credit', col: 'WF' },
-  { sheet: 'Credit', col: 'Chase' },
-  { sheet: 'Credit', col: 'Savor1' },
+  ...SHEETS.Credit.methods.map(col => ({ sheet: 'Credit', col })),
   { sheet: 'Cash', col: 'Checking' },
   { sheet: 'Cash', col: 'Cash' },
   { sheet: 'Cash', col: 'Venmo' }
@@ -1883,9 +1881,10 @@ function renderBalances() {
     if (b.sheet === 'Credit' && !isNaN(num)) total += num;
     return renderBalCard(b.col, val, b.sheet === 'Cash' ? 'third' : 'half');
   };
-  const credit = MAIN_BALANCES.filter(b => b.sheet === 'Credit').map(card).join('');
+  const cards = MAIN_BALANCES.filter(b => b.sheet === 'Credit');
+  const credit = cards.map(card).join('');
   const cash = MAIN_BALANCES.filter(b => b.sheet === 'Cash').map(card).join('');
-  mainEl.innerHTML = credit + renderBalCard('Total Credit', round2(total), 'full') + cash;
+  mainEl.innerHTML = credit + renderBalCard('Total Credit', round2(total), totalSpan(cards.length)) + cash;
 
   // Render expanded (all other columns that are numeric)
   const otherCards = [];
@@ -1903,11 +1902,15 @@ function renderBalances() {
   expandEl.innerHTML = otherCards.join('');
 }
 
+// Cards sit two per row; the Total fills the spot next to an odd last card, else takes its own row
+const totalSpan = n => n % 2 ? 'half' : 'full';
+
 // Month-End view: each card's bill with what's left, plus a Total
 function renderBill() {
   const cards = MAIN_BALANCES.filter(b => b.sheet === 'Credit');
-  const bills = cards.map(b => ({ col: b.col, bill: billFor(b.col) }));
-  if (bills.some(x => !x.bill)) return '<div class="bal-loading">Couldn’t read dates, so the month-end bill isn’t available</div>';
+  if (!futureCache || !futureCache.Credit) return '<div class="bal-loading">Couldn’t read dates, so the month-end bill isn’t available</div>';
+  // A card with no number in Excel's last row is left out rather than blocking the rest
+  const bills = cards.map(b => ({ col: b.col, bill: billFor(b.col) })).filter(x => x.bill);
   const leftText = left => left > 0 ? `left $${fmtMoney(left)}` : left < 0 ? `overpaid $${fmtMoney(left)}` : 'paid ✓';
   const leftCls = left => left > 0 ? 'due' : 'done';
   let owed = 0, left = 0;
@@ -1915,7 +1918,7 @@ function renderBill() {
     owed += bill.owed; left += Math.max(bill.left, 0); // an overpaid card doesn't pay off another one
     return renderBalCard(col, bill.owed, 'half', `<div class="bal-left ${leftCls(bill.left)}">${leftText(bill.left)}</div>`);
   }).join('');
-  return html + renderBalCard('Total', round2(owed), 'full', `<div class="bal-left ${leftCls(round2(left))}">${leftText(round2(left))}</div>`);
+  return html + renderBalCard('Total', round2(owed), totalSpan(bills.length), `<div class="bal-left ${leftCls(round2(left))}">${leftText(round2(left))}</div>`);
 }
 
 function renderBalCard(label, val, span, extra = '') {
