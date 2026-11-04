@@ -66,7 +66,9 @@
 
   .fav-section { padding: 0 24px 16px; }
   .fav-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px; }
-  .fav-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .fav-chips { display: flex; flex-direction: column; gap: 8px; }
+  .fav-group { display: flex; flex-wrap: wrap; gap: 6px; }
+  .fav-group + .fav-group { border-top: 1px solid var(--border); padding-top: 8px; }
   .fav-chips-wrap { padding-top: 8px; }
   .fav-chip {
     background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
@@ -531,7 +533,7 @@
 
 const SHEETS = {
   Cash: {
-    methods: ['Checking','SavingsCO','Cash','Venmo','Savings','CheckingCO','SavingsF','Optum','HSA Reimb','Fidelity','PB (MYR)']
+    methods: ['Venmo','Checking','SavingsCO','Cash','Savings','CheckingCO','SavingsF','Optum','HSA Reimb','Fidelity','PB (MYR)']
   },
   Credit: {
     methods: ['Discover','WF','Chase','Savor1']
@@ -556,25 +558,29 @@ const CAT_SUB_DEFAULT = {
 };
 
 const FAVORITES_DEFAULT = [
-  { label:'iCloud+', sheet:'Credit', venue:'Apple', activities:'iCloud+', method:'WF', category:'Want', sub:'Service', cost:2.99, remarks:'11th' },
-  { label:'State Farm', sheet:'Credit', venue:'State Farm', activities:"Renter's insurance", method:'WF', category:'Need', sub:'Insurance', cost:13.09, remarks:'15th' },
-  { label:'Franz Fahrenheit', sheet:'Credit', venue:'Apple', activities:'Franz Fahrenheit (monthly)', method:'WF', category:'Want', sub:'Service', cost:1.08, remarks:'17th' },
-  { label:'Spotify', sheet:'Credit', venue:'Spotify', activities:'Monthly sub', method:'Savor1', category:'Want', sub:'Music', cost:14.16, remarks:'25th' },
-  { label:'Claude Pro', sheet:'Credit', venue:'Anthropic', activities:'Claude Pro', method:'WF', category:'Want', sub:'Service', cost:20.00, remarks:'25th' },
-  { label:'Haircut', sheet:'Credit', venue:'James Irving Grooming', activities:'Haircut', method:'WF', category:'Hair', sub:'Haircut', cost:72.00, remarks:'' },
-  { label:'Sencha', sheet:'Credit', venue:'Harney & Sons', activities:'Japanese Sencha (1lb Loose Leaf) (60-day sub)', method:'WF', category:'F&D', sub:'Caffeine', cost:43.79, remarks:'' },
-  { label:'Cocofloss', sheet:'Credit', venue:'Cocofloss', activities:'32-yard floss (3-month sub)', method:'WF', category:'Need', sub:'', cost:9.73, remarks:'' },
-  { label:'Vanicream', sheet:'Credit', venue:'LovelySkin', activities:'2x Vanicream (10-week sub)', method:'WF', category:'Need', sub:'Skincare', cost:32.71, remarks:'' },
-  { label:'La Roche Posay', sheet:'Credit', venue:'Ulta', activities:'La Roche Posay Cleanser (5-month sub)', method:'WF', category:'Need', sub:'Skincare', cost:20.70, remarks:'' },
-  { label:'Davines', sheet:'Credit', venue:'Davines', activities:'Davines Dede (250ml) (6-month sub)', method:'WF', category:'Hair', sub:'Haircare', cost:40.35, remarks:'' },
-  { label:'Discover CB', sheet:'Credit', venue:'Discover', activities:'Cash back', method:'Discover', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
-  { label:'Savor1 CB', sheet:'Credit', venue:'Capital One', activities:'Cash back', method:'Savor1', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
-  { label:'WF CB', sheet:'Credit', venue:'Wells Fargo', activities:'Cash back', method:'WF', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
-  { label:'Chase CB', sheet:'Credit', venue:'Chase', activities:'Cash back', method:'Chase', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
-  { label:'Discover Pay', sheet:'Credit', venue:'Discover', activities:'Discover Payment', method:'Discover', category:'', sub:'', cost:0, remarks:'', autoFillCol:'Discover', linked:{ sheet:'Cash', venue:'Discover', activities:'Discover Payment', method:'Checking', category:'Credit', sub:'' } },
-  { label:'Savor1 Pay', sheet:'Credit', venue:'Capital One', activities:'SavorOne Payment', method:'Savor1', category:'', sub:'', cost:0, remarks:'', autoFillCol:'Savor1', linked:{ sheet:'Cash', venue:'Capital One', activities:'SavorOne Payment', method:'Checking', category:'Credit', sub:'' } },
-  { label:'WF Pay', sheet:'Credit', venue:'Wells Fargo', activities:'WF Payment', method:'WF', category:'', sub:'', cost:0, remarks:'', autoFillCol:'WF', linked:{ sheet:'Cash', venue:'Wells Fargo', activities:'WF Payment', method:'Checking', category:'Credit', sub:'' } },
-  { label:'Chase Pay', sheet:'Credit', venue:'Chase', activities:'Chase Payment', method:'Chase', category:'', sub:'', cost:0, remarks:'', autoFillCol:'Chase', linked:{ sheet:'Cash', venue:'Chase', activities:'Chase Payment', method:'Checking', category:'Credit', sub:'' } }
+  { label:'Aldi', sheet:'Credit', venue:'Aldi', activities:'Groceries', method:'Savor1', category:'F&D', sub:'Groceries', cost:0, remarks:'' },
+  { label:'Kowalski', sheet:'Credit', venue:"Kowalski's", activities:'Sushi and donuts', method:'Savor1', category:'F&D', sub:'Out', cost:0, remarks:'' },
+  { label:'36 Lyn', sheet:'Credit', venue:'36 Lyn Refuel', activities:'Gas', method:'WF', category:'Transport', sub:'Gas', cost:0, remarks:'' },
+  { label:'Park', sheet:'Credit', venue:'MPLS Parking', activities:'Parking by ', method:'Savor1', category:'Transport', sub:'Parking', cost:0, remarks:'' },
+  { label:'iCloud+', group:'sub', sheet:'Credit', venue:'Apple', activities:'iCloud+', method:'WF', category:'Want', sub:'Service', cost:2.99, remarks:'11th' },
+  { label:'State Farm', group:'sub', sheet:'Credit', venue:'State Farm', activities:"Renter's insurance", method:'WF', category:'Need', sub:'Insurance', cost:13.09, remarks:'15th' },
+  { label:'Franz Fahrenheit', group:'sub', sheet:'Credit', venue:'Apple', activities:'Franz Fahrenheit (monthly)', method:'WF', category:'Want', sub:'Service', cost:1.08, remarks:'17th' },
+  { label:'Spotify', group:'sub', sheet:'Credit', venue:'Spotify', activities:'Monthly sub', method:'Savor1', category:'Want', sub:'Music', cost:14.16, remarks:'25th' },
+  { label:'Claude Pro', group:'sub', sheet:'Credit', venue:'Anthropic', activities:'Claude Pro', method:'WF', category:'Want', sub:'Service', cost:20.00, remarks:'25th' },
+  { label:'Haircut', group:'sub', sheet:'Credit', venue:'James Irving Grooming', activities:'Haircut', method:'WF', category:'Hair', sub:'Haircut', cost:72.00, remarks:'' },
+  { label:'Sencha', group:'sub', sheet:'Credit', venue:'Harney & Sons', activities:'Japanese Sencha (1lb Loose Leaf) (60-day sub)', method:'WF', category:'F&D', sub:'Caffeine', cost:43.79, remarks:'' },
+  { label:'Cocofloss', group:'sub', sheet:'Credit', venue:'Cocofloss', activities:'32-yard floss (3-month sub)', method:'WF', category:'Need', sub:'', cost:9.73, remarks:'' },
+  { label:'Vanicream', group:'sub', sheet:'Credit', venue:'LovelySkin', activities:'2x Vanicream (10-week sub)', method:'WF', category:'Need', sub:'Skincare', cost:32.71, remarks:'' },
+  { label:'La Roche Posay', group:'sub', sheet:'Credit', venue:'Ulta', activities:'La Roche Posay Cleanser (5-month sub)', method:'WF', category:'Need', sub:'Skincare', cost:20.70, remarks:'' },
+  { label:'Davines', group:'sub', sheet:'Credit', venue:'Davines', activities:'Davines Dede (250ml) (6-month sub)', method:'WF', category:'Hair', sub:'Haircare', cost:40.35, remarks:'' },
+  { label:'Discover CB', group:'cb', sheet:'Credit', venue:'Discover', activities:'Cash back', method:'Discover', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
+  { label:'Savor1 CB', group:'cb', sheet:'Credit', venue:'Capital One', activities:'Cash back', method:'Savor1', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
+  { label:'WF CB', group:'cb', sheet:'Credit', venue:'Wells Fargo', activities:'Cash back', method:'WF', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
+  { label:'Chase CB', group:'cb', sheet:'Credit', venue:'Chase', activities:'Cash back', method:'Chase', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
+  { label:'Discover Pay', group:'pay', sheet:'Credit', venue:'Discover', activities:'Discover Payment', method:'Discover', category:'', sub:'', cost:0, remarks:'', autoFillCol:'Discover', linked:{ sheet:'Cash', venue:'Discover', activities:'Discover Payment', method:'Checking', category:'Credit', sub:'' } },
+  { label:'Savor1 Pay', group:'pay', sheet:'Credit', venue:'Capital One', activities:'SavorOne Payment', method:'Savor1', category:'', sub:'', cost:0, remarks:'', autoFillCol:'Savor1', linked:{ sheet:'Cash', venue:'Capital One', activities:'SavorOne Payment', method:'Checking', category:'Credit', sub:'' } },
+  { label:'WF Pay', group:'pay', sheet:'Credit', venue:'Wells Fargo', activities:'WF Payment', method:'WF', category:'', sub:'', cost:0, remarks:'', autoFillCol:'WF', linked:{ sheet:'Cash', venue:'Wells Fargo', activities:'WF Payment', method:'Checking', category:'Credit', sub:'' } },
+  { label:'Chase Pay', group:'pay', sheet:'Credit', venue:'Chase', activities:'Chase Payment', method:'Chase', category:'', sub:'', cost:0, remarks:'', autoFillCol:'Chase', linked:{ sheet:'Cash', venue:'Chase', activities:'Chase Payment', method:'Checking', category:'Credit', sub:'' } }
 ];
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -591,6 +597,9 @@ function loadFavorites() {
   const stored = readJSON('cf_favorites', null);
   if (!Array.isArray(stored)) return clone(FAVORITES_DEFAULT);
   const deleted = readJSON('cf_fav_deleted', []);
+  // Which line a favorite sits on is set by the code, even for ones saved on this phone
+  const byLabel = new Map(FAVORITES_DEFAULT.map(f => [f.label, f]));
+  stored.forEach(f => { const d = byLabel.get(f.label); if (d && d.group) f.group = d.group; });
   const skip = new Set([...stored.map(f => f.label), ...deleted]);
   FAVORITES_DEFAULT.forEach(d => { if (!skip.has(d.label)) stored.push(clone(d)); });
   // Code order wins; favorites not in the code (e.g. renamed) stay at the end in their saved order
@@ -598,6 +607,7 @@ function loadFavorites() {
   return stored.sort((a, b) => (order.has(a.label) ? order.get(a.label) : 1e9) - (order.has(b.label) ? order.get(b.label) : 1e9));
 }
 let currentSheet = 'Cash';
+let formSheet = null; // table the entry form is currently built for
 let history = readJSON('cf_history', []);
 let queue = readJSON('cf_queue', []);
 // An item still marked "sending" means the app closed mid-request: it may or may not be in Excel
@@ -971,7 +981,11 @@ function switchSheet(sheet) {
 
   formWrapper.style.display = '';
   balSection.style.display = 'none';
-  currentSheet = sheet; activeFav = null; showPayAmt(false);
+  // Back to the table the form is already on (e.g. after checking Balances): keep everything, favorite included
+  if (sheet === formSheet) return;
+  // Different table: a favorite's entry doesn't carry over (its method and linked rows belong to the old table)
+  if (activeFav !== null) resetForm();
+  currentSheet = formSheet = sheet;
   document.getElementById('cash-tools').style.display = sheet === 'Cash' ? '' : 'none';
   const btn = document.getElementById('btn-submit');
   btn.dataset.sheet = sheet;
@@ -993,10 +1007,11 @@ function renderFavChips() {
   const sheetFavs = favorites.filter(f => f.sheet === currentSheet);
   if (sheetFavs.length === 0) { section.style.display = 'none'; return; }
   section.style.display = '';
-  container.innerHTML = sheetFavs.map(f => {
-    const idx = favorites.indexOf(f);
-    return `<button class="fav-chip" data-idx="${idx}" onclick="applyFav(${idx})">${escHtml(f.label)}</button>`;
-  }).join('');
+  // One section each: everyday (incl. your own), subscriptions, cash back, card payments
+  const chip = f => { const idx = favorites.indexOf(f); return `<button class="fav-chip" data-idx="${idx}" onclick="applyFav(${idx})">${escHtml(f.label)}</button>`; };
+  const lines = ['sub', 'cb', 'pay'];
+  const groups = [sheetFavs.filter(f => !lines.includes(f.group)), ...lines.map(gr => sheetFavs.filter(f => f.group === gr))];
+  container.innerHTML = groups.filter(g => g.length).map(g => `<div class="fav-group">${g.map(chip).join('')}</div>`).join('');
 }
 
 function applyFav(idx) {
@@ -1018,7 +1033,6 @@ function applyFav(idx) {
   // Auto-fill cost from Excel balance for Pay favorites
   if (f.autoFillCol) {
     costNegative = true;
-    setPayAmount('month');
   } else {
     showPayAmt(false);
     document.getElementById('f-cost').value = f.cost ? fmtMoney(f.cost) : '';
@@ -1041,7 +1055,9 @@ function applyFav(idx) {
     if (subs.includes(f.sub)) { subSel.value = f.sub; }
     else { subSel.value = '__other__'; document.getElementById('f-sub-custom').value = f.sub; document.getElementById('f-sub-custom').classList.add('visible'); }
   }
-  if (!f.cost && !f.autoFillCol) document.getElementById('f-cost').focus();
+  // Pay favorites: look up the amount last, once method etc. are set (a sign-in redirect saves the form as-is)
+  if (f.autoFillCol) setPayAmount('month');
+  else if (!f.cost) document.getElementById('f-cost').focus();
 }
 
 // ── Method / Category / Sub ──────────────────────────────────────────────────
