@@ -1896,15 +1896,17 @@ function renderBalances() {
   const cash = MAIN_BALANCES.filter(b => b.sheet === 'Cash').map(card).join('');
   mainEl.innerHTML = credit + renderBalCard('Total Credit', round2(total), totalSpan(cards.length)) + cash;
 
-  // Render expanded (all other columns that are numeric)
+  // Render expanded: other numeric columns, in Excel's column order. An account column (one of the
+  // table's methods) always shows, as — if its last-row cell is empty, so a formula that didn't fill in is visible.
   const otherCards = [];
   ['Cash', 'Credit'].forEach(sheet => {
     const row = balanceCache[sheet];
     if (!row) return;
     const mainCols = MAIN_BALANCES.filter(b => b.sheet === sheet).map(b => b.col);
+    const accounts = new Set(SHEETS[sheet].methods.map(m => m.toLowerCase()));
     Object.entries(row).forEach(([col, val]) => {
       if (mainCols.includes(col) || BAL_SKIP_COLS.has(col.toLowerCase()) || BAL_HIDE[sheet]?.has(col.toLowerCase())) return;
-      if (typeof val === 'number' || (typeof val === 'string' && !isNaN(parseFloat(val)) && val.trim() !== '')) {
+      if (accounts.has(col.toLowerCase()) || typeof val === 'number' || (typeof val === 'string' && !isNaN(parseFloat(val)) && val.trim() !== '')) {
         otherCards.push(renderBalCard(sheet === 'Credit' ? `${col} (Credit)` : col, balValue(sheet, col, val)));
       }
     });
