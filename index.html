@@ -181,6 +181,8 @@
   .bal-expand { display: none; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .bal-expand.open { display: flex; }
   .bal-expand .bal-card { flex: 1; min-width: calc(50% - 4px); }
+  .bal-sub { flex-basis: 100%; margin-top: 6px; font-family: var(--mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
+  .bal-expand .bal-value:not(.positive):not(.negative):not(.zero) { color: var(--text); }
 
   .config-toggle {
     position: fixed; top: 16px; right: 20px; z-index: 50; background: var(--surface);
@@ -544,8 +546,9 @@ const SHEETS = {
   }
 };
 const FORM_SHEETS = ['Cash', 'Credit'];
-// Excel table for each sheet, from ⚙ setup (Retire falls back to RetireTable if left blank)
-const tableFor = sheet => localStorage.getItem(`cf_table_${sheet.toLowerCase()}`) || (sheet === 'Retire' ? 'RetireTable' : null);
+// Excel table for each sheet, from ⚙ setup; Retire and Travel fall back to their usual names
+const TABLE_DEFAULTS = { Retire: 'RetireTable', Travel: 'TravelTable' };
+const tableFor = sheet => localStorage.getItem(`cf_table_${sheet.toLowerCase()}`) || TABLE_DEFAULTS[sheet] || null;
 
 const CAT_SUB_DEFAULT = {
   'F&D':['Groceries','Out','Caffeine'],
@@ -1727,7 +1730,9 @@ async function getLastRowMapped(sheetKey) {
 
 // How a positive cost moves each table's running balance (matches the Excel formulas):
 // Cash = balance above − cost, Credit = balance above + cost
-const BAL_DIRECTION = { Cash: -1, Credit: 1 };
+const BAL_DIRECTION = { Cash: -1, Credit: 1, Retire: -1 };
+// Retire balances shown under More accounts (column headers in RetireTable)
+const RETIRE_COLS = ['403b', 'Roth 403b'];
 // Columns that are sums of other accounts, not running balances
 const BAL_DERIVED = { Cash: { 'COne Savings': ['SavingsCO', 'SavingsF', 'SavingsFL'] } };
 let balMode = 'today';
@@ -1829,15 +1834,20 @@ async function loadBalances() {
   document.getElementById('balance-main').innerHTML = '<div class="bal-loading">Loading…</div>';
 
   try {
-    const [cashRow, creditRow, cashFuture, creditFuture] = await Promise.all([
+    // Retire and Travel are extras: if either can't be read, the rest still shows
+    const [cashRow, creditRow, retireRow, cashFuture, creditFuture, retireFuture, travel] = await Promise.all([
       getLastRowMapped('Cash'),
       getLastRowMapped('Credit'),
+      getLastRowMapped('Retire').catch(() => null),
       getFutureSums('Cash').catch(() => null),
-      getFutureSums('Credit').catch(() => null)
+      getFutureSums('Credit').catch(() => null),
+      getFutureSums('Retire').catch(() => null),
+      getTravel().catch(() => [])
     ]);
 
-    balanceCache = { Cash: cashRow, Credit: creditRow };
-    futureCache = { Cash: cashFuture, Credit: creditFuture };
+    balanceCache = { Cash: cashRow, Credit: creditRow, Retire: retireRow };
+    futureCache = { Cash: cashFuture, Credit: creditFuture, Retire: retireFuture };
+    travelCache = travel;
     balanceTs = Date.now();
     renderBalances();
   } catch (e) {
@@ -1864,7 +1874,7 @@ function renderBalances() {
   }
   if (balMode === 'today') {
     const ok = futureCache && futureCache.Cash && futureCache.Credit;
-    const n = ok ? futureCache.Cash.count + futureCache.Credit.count : 0;
+    const n = ok ? futureCache.Cash.count + futureCache.Credit.count + (futureCache.Retire ? futureCache.Retire.count : 0) : 0;
     const t = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     noteEl.textContent = !ok ? 'Couldn’t read dates, so showing all entered'
       : n ? `As of ${t} · leaving out ${n} future-dated row${n > 1 ? 's' : ''}` : `As of ${t} · no future-dated rows`;
@@ -1899,7 +1909,33 @@ function renderBalances() {
       }
     });
   });
+  // Then Retire (403b, Roth 403b), then Travel last
+  const retire = balanceCache.Retire;
+  if (retire) {
+    const cards = RETIRE_COLS.map(c => Object.keys(retire).find(k => k.trim().toLowerCase() === c.toLowerCase()))
+      .filter(Boolean).map(col => renderBalCard(col, balValue('Retire', col, retire[col])));
+    if (cards.length) otherCards.push('<div class="bal-sub">Retire</div>', ...cards);
+  }
+  if (travelCache && travelCache.length) {
+    otherCards.push('<div class="bal-sub">Travel</div>',
+      ...travelCache.map(t => `<div class="bal-card"><div class="bal-label">${escHtml(t.label)}</div><div class="bal-value">${escHtml(t.text)}</div></div>`));
+  }
   expandEl.innerHTML = otherCards.join('');
+}
+
+// Travel: the TravelTable's headers + first row, shown as Excel formats them (miles, $ credits, notes).
+// Empty or 0 items are left out.
+let travelCache = [];
+async function getTravel() {
+  const token = await getToken();
+  const base = workbookBase();
+  if (!token || !base) return [];
+  const res = await fetch(`${base}/tables/${encodeURIComponent(tableFor('Travel'))}/range?$select=text,values`, { headers: { 'Authorization': `Bearer ${token}` } });
+  if (!res.ok) return [];
+  const { text = [], values = [] } = await res.json();
+  if (text.length < 2) return [];
+  return text[0].map((label, i) => ({ label: String(label).trim(), text: String(text[1][i] ?? '').trim(), value: values[1] ? values[1][i] : '' }))
+    .filter(t => t.label && t.text && t.value !== 0 && t.value !== '');
 }
 
 // Cards sit two per row; the Total fills the spot next to an odd last card, else takes its own row
