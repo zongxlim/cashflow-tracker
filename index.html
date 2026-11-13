@@ -2016,7 +2016,10 @@ function setPayAmount(kind) {
 // ── Monthly (Cash) ───────────────────────────────────────────────────────────
 // Change fixed amounts here (rent, parking, family savings, defaults below).
 
-const RENT = 1495, PARKING = 185, FAMILY_SAVINGS = 500;
+const RENT = 1495, PARKING = 185;
+// Amounts that changed over time go by the Monthly page's month ('YYYY-MM'), so older pages keep the old amounts
+const familySavings = m => m >= '2026-11' ? 600 : 500;
+const atMonth = (v, m) => typeof v === 'function' ? v(m) : v;
 
 function mRow(venue, activities, method, category, sub, cost, remarks = '') {
   return { venue, activities, method, category, sub, sub2: '', sub3: '', cost: round2(cost), remarks };
@@ -2028,27 +2031,27 @@ const MONTHLY_ITEMS = [
   { key: 'internet',    label: 'Quantum Fiber',            due: 'd22',   def: 30,      rows: A => [mRow('Quantum Fiber', 'Monthly Internet (Up to 200 Mbps)', 'Checking', 'Utilities', 'Wifi', A)] },
   { key: 'electric',    label: 'Xcel electric',            due: 'eom',   rows: A => [mRow('Xcel Energy', 'Electric Bill', 'Checking', 'Utilities', 'Electric', A)] },
   { key: 'hsaEmployer', label: 'Carleton HSA contribution', due: 'eom',  def: 100,     rows: A => [mRow('Carleton', 'Carleton contribution', 'Optum', '', '', -A)] },
-  { key: 'hsaMine',     label: 'My HSA contribution',      due: 'eom',   def: 266.66,  rows: A => [mRow('Carleton', 'My contribution', 'Optum', 'HSA', '', -A)] },
+  { key: 'hsaMine',     label: 'My HSA contribution',      due: 'eom',   def: m => m >= '2027-01' ? 275 : 266.66, rows: A => [mRow('Carleton', 'My contribution', 'Optum', 'HSA', '', -A)] },
   { key: 'interest',    label: 'Optum interest',           due: 'eom',   rows: A => [mRow('Carleton', 'Interest', 'Optum', '', '', -A)] },
   { key: 'pay',         label: 'Pay',                      due: 'eom',   def: 5689.33, rows: A => [mRow('Carleton', 'Pay', 'Checking', 'Pay', '', -A)] },
   { key: 'weidner',     label: 'Weidner (bill total)',     due: 'next1', min: RENT + PARKING, rows: A => weidnerRows(A) },
   { key: 'phone',       label: 'Auntie Theresa (phone)',   due: 'next1', def: 32,      rows: A => [mRow('Auntie Theresa', 'Phone bill (monthly Zelle)', 'Checking', 'Need', 'Phone', A)] },
-  { key: 'savings',     label: 'Savings (total)',          due: 'next2', min: FAMILY_SAVINGS, rows: A => [
+  { key: 'savings',     label: 'Savings (total)',          due: 'next2', def: m => m >= '2026-11' ? 2100 : undefined, min: familySavings, rows: (A, m) => [
       mRow('Capital One', 'Savings', 'Checking', 'Savings', '', A),
-      mRow('Capital One', 'Savings (Family)', 'SavingsF', '', '', -FAMILY_SAVINGS),
-      mRow('Capital One', 'Savings (Discretionary)', 'SavingsCO', '', '', -(A - FAMILY_SAVINGS))] },
-  { key: 'fidelity',    label: 'Fidelity',                 due: 'next2', def: 650,     rows: A => [
+      mRow('Capital One', 'Savings (Family)', 'SavingsF', '', '', -familySavings(m)),
+      mRow('Capital One', 'Savings (Discretionary)', 'SavingsCO', '', '', -(A - familySavings(m)))] },
+  { key: 'fidelity',    label: 'Fidelity',                 due: 'next2', def: m => m >= '2026-11' ? 888.88 : 650, rows: A => [
       mRow('Wells Fargo', 'Fidelity', 'Checking', 'Savings', '', A),
       mRow('Fidelity', 'Fidelity', 'Fidelity', '', '', -A)] },
   // Goes to RetireTable. Two amounts; Date stays month end, "Received" (optional) goes in Remarks.
   { key: 'retire',      label: 'TIAA 403(b)',              due: 'eom',   sheet: 'Retire', received: true,
-    parts: [{ label: 'Carleton', def: 833.34 }, { label: 'Personal', def: 166.67 }],
+    parts: [{ label: 'Carleton', def: m => m >= '2026-11' ? 1000 : 833.34 }, { label: 'Personal', def: m => m >= '2026-11' ? 200 : 166.67 }],
     rows: ([carleton, personal], remarks) => [
       mRow('TIAA', '403(b) Carleton Contribution', '403b', '', '', -carleton, remarks),
       mRow('TIAA', '403(b) Personal Contribution', '403b', '', '', -personal, remarks)] },
 ];
 // Default shown before an item is entered (multi-amount items: their sum)
-const monthlyDefault = item => item.parts ? round2(item.parts.reduce((s, p) => s + p.def, 0)) : item.def;
+const monthlyDefault = (item, m) => item.parts ? round2(item.parts.reduce((s, p) => s + atMonth(p.def, m), 0)) : atMonth(item.def, m);
 
 let monthly = readJSON('cf_monthly', {});
 let viewMonth = null;
@@ -2126,13 +2129,13 @@ function renderMonthly() {
     const done = rec[item.key];
     const open = expandedMonthly === item.key;
     const meta = done ? `$${fmtMoney(done.amount)} · ${shortDate(done.date)}`
-                      : `${monthlyDefault(item) !== undefined ? '$' + fmtMoney(monthlyDefault(item)) + ' · ' : ''}due ${shortDate(monthDueDate(viewMonth, item.due))}`;
+                      : `${monthlyDefault(item, viewMonth) !== undefined ? '$' + fmtMoney(monthlyDefault(item, viewMonth)) + ' · ' : ''}due ${shortDate(monthDueDate(viewMonth, item.due))}`;
     let body = '';
     if (open && done) {
       body = `<div class="m-body"><button class="m-undo" onclick="undoMonthly('${item.key}')">Undo checkmark (does not remove rows from Excel)</button></div>`;
     } else if (open) {
       const amt = (id, label, def) => `<div class="field"><label>${escHtml(label)}</label><input type="text" id="${id}" inputmode="decimal" placeholder="0.00" value="${def !== undefined ? fmtMoney(def) : ''}" onblur="formatMoneyInput(this)"></div>`;
-      const amounts = item.parts ? item.parts.map((p, k) => amt(`m-amt-${k}`, p.label, p.def)).join('') : amt('m-amt', 'Amount', item.def);
+      const amounts = item.parts ? item.parts.map((p, k) => amt(`m-amt-${k}`, p.label, atMonth(p.def, viewMonth))).join('') : amt('m-amt', 'Amount', atMonth(item.def, viewMonth));
       body = `<div class="m-body">
         ${item.parts ? `<div class="field-row">${amounts}</div>` : ''}
         <div class="field-row">
@@ -2161,14 +2164,15 @@ async function commitMonthly(key) {
   const date = document.getElementById('m-date').value;
   if (isNaN(A) || A < 0 || (parts && parts.some(v => isNaN(v) || v < 0))) return showToast('Enter a valid amount', 'error');
   if (!date) return showToast('Date is required', 'error');
-  if (item.min !== undefined && A < item.min) return showToast(`Must be at least $${fmtMoney(item.min)}`, 'error');
+  const min = atMonth(item.min, viewMonth);
+  if (min !== undefined && A < min) return showToast(`Must be at least $${fmtMoney(min)}`, 'error');
   let remarks = '';
   if (item.received) {
     const r = document.getElementById('m-received').value;
     if (r) { const [y, m, d] = r.split('-').map(Number); remarks = `Received ${new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`; }
   }
 
-  const partial = parts ? item.rows(parts, remarks) : item.rows(A);
+  const partial = parts ? item.rows(parts, remarks) : item.rows(A, viewMonth);
   // If this is the last of the four apartment bills, its row carries the month's totals
   if (APARTMENT_KEYS.includes(key)) {
     const rec = monthly[viewMonth] || {};
