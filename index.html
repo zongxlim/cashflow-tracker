@@ -63,6 +63,16 @@
   .tab.active[data-sheet="Cash"] { background: rgba(52,211,153,0.1); border-color: var(--cash-color); color: var(--cash-color); }
   .tab.active[data-sheet="Credit"] { background: rgba(124,106,247,0.1); border-color: var(--credit-color); color: var(--credit-color); }
   .tab.active[data-sheet="Balances"] { background: rgba(251,191,36,0.1); border-color: #fbbf24; color: #fbbf24; }
+  .tab.active[data-sheet="Analysis"] { background: rgba(56,189,248,0.1); border-color: #38bdf8; color: #38bdf8; }
+  .an-new { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; margin-bottom: 10px; border: 1px solid #38bdf8; border-radius: 10px; background: rgba(56,189,248,0.08); font-family: var(--mono); font-size: 11px; color: var(--text); }
+  .an-new button { flex-shrink: 0; padding: 8px 12px; border: none; border-radius: 8px; background: #38bdf8; color: #0b0b12; font-family: var(--mono); font-size: 11px; font-weight: 600; cursor: pointer; }
+  .an-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  .an-table th { font-size: 10px; font-weight: 400; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: right; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  .an-table th:first-child, .an-table td:first-child { text-align: left; padding-left: 0; }
+  .an-table td { text-align: right; padding: 7px 4px; border-bottom: 1px solid var(--border); color: var(--text-muted); white-space: nowrap; }
+  .an-table td:first-child, .an-table td.an-now { color: var(--text); }
+  .an-table tr.an-sub td:first-child { padding-left: 12px; color: var(--text-muted); }
+  .an-table tr.an-sub td { border-bottom-color: transparent; padding-top: 3px; padding-bottom: 3px; font-size: 11px; }
 
   .fav-section { padding: 0 24px 16px; }
   .fav-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px; }
@@ -274,30 +284,6 @@
   .history-item.sheet-Credit .hi-amount { color: var(--credit-color); }
   .history-item.sheet-Retire .hi-amount, .queue-item.sheet-Retire .qi-amount { color: var(--text-muted); }
 
-  .cat-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
-  .cat-row.expanded { border-color: var(--accent); }
-  .cat-row-name { font-family: var(--mono); font-size: 13px; flex: 1; }
-  .cat-row-chevron { color: var(--text-muted); font-size: 10px; transition: transform 0.2s; }
-  .cat-row.expanded .cat-row-chevron { transform: rotate(90deg); }
-  .cat-delete { background: none; border: none; color: var(--error); font-size: 14px; cursor: pointer; padding: 0 2px; opacity: 0.6; }
-  .cat-delete:hover { opacity: 1; }
-  .sub-panel { display: none; padding: 8px 12px 12px 16px; border: 1px solid var(--accent); border-top: none; border-radius: 0 0 8px 8px; margin-top: -6px; margin-bottom: 6px; background: rgba(124,106,247,0.04); }
-  .sub-panel.open { display: block; }
-  .sub-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-  .sub-tag { background: var(--surface); border: 1px solid var(--border-bright); border-radius: 4px; padding: 3px 8px; font-family: var(--mono); font-size: 11px; display: flex; align-items: center; gap: 5px; }
-  .sub-tag button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; padding: 0; line-height: 1; }
-  .sub-tag button:hover { color: var(--error); }
-  .sub-add-row { display: flex; gap: 6px; }
-  .sub-add-row input { flex: 1; font-size: 12px; padding: 8px 10px; }
-  .btn-add-sub { background: var(--accent-glow); border: 1px solid var(--accent-dim); color: var(--accent); border-radius: 6px; padding: 8px 12px; font-family: var(--mono); font-size: 11px; cursor: pointer; white-space: nowrap; }
-  .add-cat-row { display: flex; gap: 8px; margin-top: 4px; }
-  .add-cat-row input { flex: 1; }
-  .btn-add-cat { background: var(--accent); border: none; color: #fff; border-radius: 8px; padding: 12px 16px; font-family: var(--mono); font-size: 12px; cursor: pointer; white-space: nowrap; }
-
-  .fav-manager-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
-  .fav-manager-label { font-family: var(--mono); font-size: 12px; flex: 1; }
-  .fav-manager-detail { font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
-  .fav-manager-edit { background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 0 6px; }
 
   .btn-ms-signin {
     width: 100%; padding: 14px; background: #2f2f2f; border: 1px solid #555; border-radius: 10px;
@@ -329,6 +315,17 @@
     <button class="tab active" data-sheet="Credit" onclick="switchSheet('Credit')">Credit</button>
     <button class="tab" data-sheet="Cash" onclick="switchSheet('Cash')">Cash</button>
     <button class="tab" data-sheet="Balances" onclick="switchSheet('Balances')">Balances</button>
+    <button class="tab" data-sheet="Analysis" onclick="switchSheet('Analysis')">Analysis</button>
+  </div>
+
+  <!-- Analysis (read-only view of the Analysis tab in Excel) -->
+  <div class="balance-section" id="analysis-section" style="display:none;">
+    <div class="fav-label">Analysis <span onclick="loadAnalysis()" style="cursor:pointer;color:#38bdf8;margin-left:8px;">↻</span></div>
+    <div class="bal-note" id="an-note"></div>
+    <div id="analysis-main"></div>
+    <div class="more-toggle" id="an-all-toggle" onclick="toggleAnalysisAll()" style="margin-top:10px;display:none;">
+      <span class="arrow">▶</span> Show all
+    </div>
   </div>
 
   <!-- Balance Dashboard -->
@@ -473,22 +470,13 @@
 
   <div class="divider"></div>
 
-  <h3>Favorites</h3>
-  <p class="desc" style="margin-bottom:14px;">Recurring transactions. Tap edit to change cost or details.</p>
-  <div id="fav-manager"></div>
+  <h3>Favorites, categories &amp; Monthly amounts</h3>
+  <p class="desc" style="margin-bottom:14px;">These live in your Excel file, in the tables FavTable, CatTable and AppSettings. Edit them there, then reload.</p>
+  <div class="bal-note" id="cfg-excel-status"></div>
+  <button class="btn-toggle" onclick="loadConfig(true)">↻ Reload from Excel</button>
 
   <div class="divider"></div>
-
-  <h3>Categories & Sub-categories</h3>
-  <p class="desc" style="margin-bottom:14px;">Changes save instantly. Update your Excel Cat tab too.</p>
-  <div class="cat-manager" id="cat-manager"></div>
-  <div class="add-cat-row">
-    <input type="text" id="new-cat-input" placeholder="New category name…">
-    <button class="btn-add-cat" onclick="addCategory()">+ Add</button>
-  </div>
-
-  <div class="divider"></div>
-  <p class="desc" style="font-size:10px;">All settings saved in localStorage on this device only. Transaction data only flows to Microsoft when you submit.</p>
+  <p class="desc" style="font-size:10px;">Connection settings and pending entries are kept on this device only. Your data goes only to Microsoft.</p>
 </div>
 
 <div class="config-panel" id="queue-panel">
@@ -540,51 +528,15 @@ const SHEETS = {
   Credit: {
     methods: ['Discover','WF','Chase','Savor1','DeltaAmexGold']
   },
-  // Written only by Monthly (TIAA 403(b)); no entry tab, no balances
+  // Written only by Monthly's retirement item; no entry tab
   Retire: {
     methods: ['403b']
   }
 };
 const FORM_SHEETS = ['Cash', 'Credit'];
-// Excel table for each sheet, from ⚙ setup; Retire and Travel fall back to their usual names
-const TABLE_DEFAULTS = { Retire: 'RetireTable', Travel: 'TravelTable' };
+// Excel table for each sheet, from ⚙ setup; Retire, Travel and Analysis fall back to their usual names
+const TABLE_DEFAULTS = { Retire: 'RetireTable', Travel: 'TravelTable', Analysis: 'AnalysisTable' };
 const tableFor = sheet => localStorage.getItem(`cf_table_${sheet.toLowerCase()}`) || TABLE_DEFAULTS[sheet] || null;
-
-const CAT_SUB_DEFAULT = {
-  'F&D':['Groceries','Out','Caffeine'],
-  'Transport':['Maintenance','Parking','Car','Gas','Insurance','Ride','Registration'],
-  'Want':['Experience','Goods','Music','Gift','Service','Fashion','Shambhala'],
-  'Need':['Skincare','Insurance','License','Visa','Phone','Goods','Workout'],
-  'Travel':['Flight','Stay'],
-  'Pay':[],'Health':[],'Home':['Rent','Move'],'Utilities':['Wifi','Gas','Electric','Others'],
-  'Dr':['Alcohol','THC'],'Hair':['Haircut','Haircare'],'Eyes':['Lenses','Glasses'],'Fam':[]
-};
-
-const FAVORITES_DEFAULT = [
-  { label:'Aldi', sheet:'Credit', venue:'Aldi', activities:'Groceries', method:'Savor1', category:'F&D', sub:'Groceries', cost:0, remarks:'' },
-  { label:'Kowalski', sheet:'Credit', venue:"Kowalski's", activities:'Sushi and donuts', method:'Savor1', category:'F&D', sub:'Out', cost:0, remarks:'' },
-  { label:'36 Lyn', sheet:'Credit', venue:'36 Lyn Refuel', activities:'Gas', method:'WF', category:'Transport', sub:'Gas', cost:0, remarks:'' },
-  { label:'Park', sheet:'Credit', venue:'MPLS Parking', activities:'Parking by ', method:'Savor1', category:'Transport', sub:'Parking', cost:0, remarks:'' },
-  { label:'iCloud+', group:'sub', sheet:'Credit', venue:'Apple', activities:'iCloud+', method:'WF', category:'Want', sub:'Service', cost:2.99, remarks:'11th' },
-  { label:'State Farm', group:'sub', sheet:'Credit', venue:'State Farm', activities:"Renter's insurance", method:'WF', category:'Need', sub:'Insurance', cost:13.09, remarks:'15th' },
-  { label:'Franz Fahrenheit', group:'sub', sheet:'Credit', venue:'Apple', activities:'Franz Fahrenheit (monthly)', method:'WF', category:'Want', sub:'Service', cost:1.08, remarks:'17th' },
-  { label:'Spotify', group:'sub', sheet:'Credit', venue:'Spotify', activities:'Monthly sub', method:'Savor1', category:'Want', sub:'Music', cost:14.16, remarks:'25th' },
-  { label:'Claude Pro', group:'sub', sheet:'Credit', venue:'Anthropic', activities:'Claude Pro', method:'WF', category:'Want', sub:'Service', cost:20.00, remarks:'25th' },
-  { label:'Haircut', group:'sub', sheet:'Credit', venue:'James Irving Grooming', activities:'Haircut', method:'WF', category:'Hair', sub:'Haircut', cost:72.00, remarks:'' },
-  { label:'Sencha', group:'sub', sheet:'Credit', venue:'Harney & Sons', activities:'Japanese Sencha (1lb Loose Leaf) (60-day sub)', method:'WF', category:'F&D', sub:'Caffeine', cost:43.79, remarks:'' },
-  { label:'Cocofloss', group:'sub', sheet:'Credit', venue:'Cocofloss', activities:'32-yard floss (3-month sub)', method:'WF', category:'Need', sub:'', cost:9.73, remarks:'' },
-  { label:'Vanicream', group:'sub', sheet:'Credit', venue:'LovelySkin', activities:'2x Vanicream (10-week sub)', method:'WF', category:'Need', sub:'Skincare', cost:32.71, remarks:'' },
-  { label:'La Roche Posay', group:'sub', sheet:'Credit', venue:'Ulta', activities:'La Roche Posay Cleanser (5-month sub)', method:'WF', category:'Need', sub:'Skincare', cost:20.70, remarks:'' },
-  { label:'Davines', group:'sub', sheet:'Credit', venue:'Davines', activities:'Davines Dede (250ml) (6-month sub)', method:'WF', category:'Hair', sub:'Haircare', cost:40.35, remarks:'' },
-  { label:'Discover CB', group:'cb', sheet:'Credit', venue:'Discover', activities:'Cash back', method:'Discover', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
-  { label:'Savor1 CB', group:'cb', sheet:'Credit', venue:'Capital One', activities:'Cash back', method:'Savor1', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
-  { label:'WF CB', group:'cb', sheet:'Credit', venue:'Wells Fargo', activities:'Cash back', method:'WF', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
-  { label:'Chase CB', group:'cb', sheet:'Credit', venue:'Chase', activities:'Cash back', method:'Chase', category:'', sub:'', cost:0, remarks:'', negativeDefault:true },
-  { label:'Discover Pay', group:'pay', sheet:'Credit', venue:'Discover', activities:'Discover Payment', method:'Discover', category:'', sub:'', cost:0, remarks:'', autoFillCol:'Discover', linked:{ sheet:'Cash', venue:'Discover', activities:'Discover Payment', method:'Checking', category:'Credit', sub:'' } },
-  { label:'Savor1 Pay', group:'pay', sheet:'Credit', venue:'Capital One', activities:'SavorOne Payment', method:'Savor1', category:'', sub:'', cost:0, remarks:'', autoFillCol:'Savor1', linked:{ sheet:'Cash', venue:'Capital One', activities:'SavorOne Payment', method:'Checking', category:'Credit', sub:'' } },
-  { label:'WF Pay', group:'pay', sheet:'Credit', venue:'Wells Fargo', activities:'WF Payment', method:'WF', category:'', sub:'', cost:0, remarks:'', autoFillCol:'WF', linked:{ sheet:'Cash', venue:'Wells Fargo', activities:'WF Payment', method:'Checking', category:'Credit', sub:'' } },
-  { label:'Chase Pay', group:'pay', sheet:'Credit', venue:'Chase', activities:'Chase Payment', method:'Chase', category:'', sub:'', cost:0, remarks:'', autoFillCol:'Chase', linked:{ sheet:'Cash', venue:'Chase', activities:'Chase Payment', method:'Checking', category:'Credit', sub:'' } }
-];
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -592,23 +544,162 @@ const FAVORITES_DEFAULT = [
 function readJSON(key, fallback) {
   try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return v == null ? fallback : v; } catch (e) { return fallback; }
 }
-let catSub = readJSON('cf_cat_sub', null) || JSON.parse(JSON.stringify(CAT_SUB_DEFAULT));
-let favorites = loadFavorites();
 
-function loadFavorites() {
-  const clone = o => JSON.parse(JSON.stringify(o));
-  const stored = readJSON('cf_favorites', null);
-  if (!Array.isArray(stored)) return clone(FAVORITES_DEFAULT);
-  const deleted = readJSON('cf_fav_deleted', []);
-  // Which line a favorite sits on is set by the code, even for ones saved on this phone
-  const byLabel = new Map(FAVORITES_DEFAULT.map(f => [f.label, f]));
-  stored.forEach(f => { const d = byLabel.get(f.label); if (d && d.group) f.group = d.group; });
-  const skip = new Set([...stored.map(f => f.label), ...deleted]);
-  FAVORITES_DEFAULT.forEach(d => { if (!skip.has(d.label)) stored.push(clone(d)); });
-  // Code order wins; favorites not in the code (e.g. renamed) stay at the end in their saved order
-  const order = new Map(FAVORITES_DEFAULT.map((f, i) => [f.label, i]));
-  return stored.sort((a, b) => (order.has(a.label) ? order.get(a.label) : 1e9) - (order.has(b.label) ? order.get(b.label) : 1e9));
+// ── Private setup (read from Excel) ──────────────────────────────────────────
+// Favorites, categories and every Monthly amount / name live in three tables in the workbook, not in this
+// file (which anyone can read). They're read after sign-in and kept on the phone, so the app works offline.
+//   AppSettings    Key | From | Value   — From (YYYY-MM, optional) is the first month that row applies to
+//   FavTable       Label | Section | Table | Venue | Activities | Method | Category | Sub | Cost | Remarks
+//   CatTable       the list on the Cat sheet: one column per category (the header), its sub-categories
+//                  underneath. The entry form's order is the "categories.order" setting, not the sheet's.
+const CONFIG_TABLES = { settings: 'AppSettings', favorites: 'FavTable', categories: 'CatTable' };
+let config = { settings: {}, favorites: [], categories: {}, loaded: null, missing: [], ...readJSON('cf_config', {}) };
+let catSub = orderedCategories();
+let favorites = config.favorites;
+
+// Excel hands a month back as text ("2026-11") or, if it turned it into a date, as a number
+function toMonth(v) {
+  if (typeof v === 'number' && v > 0) {
+    const d = new Date(Date.UTC(1899, 11, 30) + Math.floor(v) * 864e5);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  }
+  const m = String(v ?? '').trim().match(/^(\d{4})-(\d{1,2})/);
+  return m ? `${m[1]}-${m[2].padStart(2, '0')}` : '';
 }
+
+// A table's cells (header row first) → one object per row, keyed by lower-case header
+function tableRows(values) {
+  const head = values[0].map(h => String(h ?? '').trim().toLowerCase());
+  return values.slice(1).map(r => Object.fromEntries(head.map((h, i) => [h, r[i]])));
+}
+
+// → { key: [{ from, value }, …] } with each key's rows in month order
+function parseSettings(values) {
+  const out = {};
+  tableRows(values).forEach(r => {
+    const key = String(r.key ?? '').trim().toLowerCase();
+    const value = typeof r.value === 'string' ? r.value.trim() : r.value;
+    if (!key || value === '' || value == null) return;
+    (out[key] = out[key] || []).push({ from: toMonth(r.from), value });
+  });
+  Object.values(out).forEach(list => list.sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0)));
+  return out;
+}
+
+// Section decides the line a chip sits on and how it behaves:
+//   cash back → cost starts negative · payment → fills in what's owed and also writes the Checking side
+const FAV_SECTIONS = [['sub', /^sub/], ['cb', /^(cash|cb)/], ['pay', /^pay/]];
+function parseFavorites(values) {
+  return tableRows(values).map(r => {
+    const text = k => String(r[k] ?? '').trim();
+    const sheet = FORM_SHEETS.find(x => x.toLowerCase() === text('table').toLowerCase());
+    if (!text('label') || !sheet) return null;
+    const group = (FAV_SECTIONS.find(([, re]) => re.test(text('section').toLowerCase())) || [])[0];
+    // Activities keeps a space at the end ("Parking by "), for chips whose text you finish yourself
+    const f = { label: text('label'), sheet, venue: text('venue'), activities: String(r.activities ?? '').trimStart(), method: text('method'),
+      category: text('category'), sub: text('sub'), cost: parseFloat(r.cost) || 0, remarks: text('remarks') };
+    if (group) f.group = group;
+    if (group === 'cb') f.negativeDefault = true;
+    if (group === 'pay') {
+      f.autoFillCol = f.method;
+      f.linked = { sheet: 'Cash', venue: f.venue, activities: f.activities, method: 'Checking', category: 'Credit', sub: '' };
+    }
+    return f;
+  }).filter(Boolean);
+}
+
+// A column headed "Category" is the list's own label column (as on the Cat sheet), not a category
+function parseCategories(values) {
+  const out = {};
+  values[0].forEach((h, c) => {
+    const cat = String(h ?? '').trim();
+    if (cat && cat.toLowerCase() !== 'category') out[cat] = values.slice(1).map(r => String(r[c] ?? '').trim()).filter(Boolean);
+  });
+  return out;
+}
+
+// Categories in the order you like, without touching the sheet: the ones named in the "categories.order"
+// setting come first, in that order; any others follow as they are on the sheet.
+function orderedCategories() {
+  const all = config.categories, out = {};
+  String(cfg('categories.order') ?? '').split(',').forEach(want => {
+    const name = Object.keys(all).find(k => k.toLowerCase() === want.trim().toLowerCase());
+    if (name) out[name] = all[name];
+  });
+  Object.keys(all).forEach(k => { if (!(k in out)) out[k] = all[k]; });
+  return out;
+}
+
+// A setting's value for a month: the row with the latest From that isn't after it.
+// Rows without a From always apply; with no month given, the newest row wins.
+function cfg(key, month) {
+  let hit;
+  (config.settings[key.toLowerCase()] || []).forEach(r => { if (r.from <= (month || '9999-12')) hit = r; });
+  return hit ? hit.value : undefined;
+}
+const cfgText = (key, month) => { const v = cfg(key, month); return v == null ? '' : String(v); };
+const cfgNum = (key, month) => { const n = parseFloat(cfg(key, month)); return isNaN(n) ? undefined : n; };
+
+// Reads the three tables. Quiet unless you tapped Reload; never signs in or redirects.
+let configLoadedAt = 0;
+async function loadConfig(manual) {
+  const stop = msg => { if (manual) showToast(msg, 'error'); return false; };
+  if (!msalInstance || !msalInstance.getAllAccounts().length) return stop('Sign in first');
+  if (!navigator.onLine) return stop('Offline — try again when connected');
+  const base = workbookBase();
+  if (!base) return stop('Set file path in ⚙ setup');
+  if (!manual && Date.now() - configLoadedAt < 600000) return false; // at most every 10 minutes on its own
+  configLoadedAt = Date.now();
+  let token;
+  try { token = (await msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite'], account: msalInstance.getAllAccounts()[0] })).accessToken; }
+  catch (e) { configLoadedAt = 0; return stop('Sign in again, then reload'); }
+  const parse = { settings: parseSettings, favorites: parseFavorites, categories: parseCategories };
+  const next = { ...config, missing: [] };
+  let got = 0;
+  await Promise.all(Object.entries(CONFIG_TABLES).map(async ([part, table]) => {
+    try {
+      const res = await fetch(`${base}/tables/${encodeURIComponent(table)}/range?$select=values`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (res.status === 404) { next.missing.push(table); return; }
+      if (!res.ok) return;
+      const { values } = await res.json();
+      if (values && values.length) { next[part] = parse[part](values); got++; }
+    } catch (e) { /* keep what's on the phone */ }
+  }));
+  if (!got && !next.missing.length) { configLoadedAt = 0; return stop('Couldn’t reach Excel — try again'); }
+  if (got) next.loaded = nowStamp();
+  // Once everything comes from Excel, the copies older versions kept on the phone aren't needed
+  if (got === 3) ['cf_favorites', 'cf_fav_deleted', 'cf_cat_sub'].forEach(k => localStorage.removeItem(k));
+  applyConfig(next);
+  if (manual) showToast(next.missing.length ? `Not found in Excel: ${next.missing.join(', ')}` : '✓ Loaded from Excel', next.missing.length ? 'error' : 'success');
+  return true;
+}
+
+// Swaps in a freshly read setup and redraws what depends on it, keeping an entry in progress
+function applyConfig(next) {
+  const part = c => JSON.stringify([c.settings, c.favorites, c.categories]);
+  const changed = part(next) !== part(config);
+  const snap = changed && formSheet ? formSnapshot() : null;
+  config = next; catSub = orderedCategories(); favorites = config.favorites;
+  localStorage.setItem('cf_config', JSON.stringify(config));
+  renderConfigStatus();
+  if (!changed || !formSheet) return;
+  activeFav = null; showPayAmt(false);
+  buildCategoryDropdown(); renderFavChips();
+  if (snap && snap.favLabel && !favorites.some(f => f.label === snap.favLabel)) {
+    resetForm(); showToast('That favorite changed in Excel — pick it again', 'error'); // never leave half of a linked entry
+  } else if (snap) applyFormSnapshot(snap);
+  if (viewMonth && !expandedMonthly) renderMonthly();
+}
+
+function renderConfigStatus() {
+  const el = document.getElementById('cfg-excel-status');
+  const cats = Object.keys(catSub).length, sets = Object.keys(config.settings).length;
+  el.textContent = (config.loaded
+    ? `Loaded ${config.loaded} · ${favorites.length} favorite${favorites.length === 1 ? '' : 's'} · ${cats} categor${cats === 1 ? 'y' : 'ies'} · ${sets} setting${sets === 1 ? '' : 's'}`
+    : 'Not loaded yet. Sign in, then tap Reload.')
+    + (config.missing.length ? ` · Not found in Excel: ${config.missing.join(', ')}` : '');
+}
+
 let currentSheet = 'Cash';
 let formSheet = null; // table the entry form is currently built for
 let history = readJSON('cf_history', []);
@@ -631,8 +722,6 @@ const MAIN_BALANCES = [
   { sheet: 'Cash', col: 'Cash' },
   { sheet: 'Cash', col: 'Venmo' }
 ];
-
-function saveCatSub() { localStorage.setItem('cf_cat_sub', JSON.stringify(catSub)); }
 
 function nowStamp() {
   return new Date().toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true, timeZoneName:'short' });
@@ -666,7 +755,6 @@ function localDateStr(d) {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
-function saveFavorites() { localStorage.setItem('cf_favorites', JSON.stringify(favorites)); }
 function saveQueue() { localStorage.setItem('cf_queue', JSON.stringify(queue)); renderPendingBadge(); }
 
 // ── MSAL / Auth ──────────────────────────────────────────────────────────────
@@ -693,7 +781,7 @@ function initMsal() {
       accessToken = res.accessToken;
       updateAuthUI(true, res.account.username);
       showToast('Signed in', 'success');
-      warmUp();
+      warmUp(); loadConfig();
     } else {
       const accounts = msalInstance.getAllAccounts();
       if (accounts.length > 0) silentLogin(accounts[0]);
@@ -706,7 +794,7 @@ async function silentLogin(account) {
     const res = await msalInstance.acquireTokenSilent({ scopes: ['Files.ReadWrite'], account });
     accessToken = res.accessToken;
     updateAuthUI(true, account.username);
-    warmUp();
+    warmUp(); loadConfig();
   } catch (e) { /* needs interactive */ }
 }
 
@@ -728,6 +816,9 @@ async function logout() {
 
 async function getToken() {
   if (!msalInstance) { showToast('Set Client ID and sign in first', 'error'); return null; }
+  // Offline, a sign-in redirect would only land on an error page
+  // (mid-sync this makes the remaining rows a plain "failed — retry", since nothing was sent)
+  if (!navigator.onLine) { if (!busySending()) showToast('Offline — try again when connected', 'error'); return null; }
   const accounts = msalInstance.getAllAccounts();
   if (accounts.length === 0) {
     if (busySending()) { authBlocked = true; return null; } // don't leave mid-sync
@@ -832,7 +923,7 @@ async function warmUp() {
     }));
   } catch (e) { /* warm-up is optional */ }
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') warmUp(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { warmUp(); loadConfig(); } });
 
 // Keeps the workbook open for the length of a sync so Excel doesn't reopen it for every request.
 // If it can't be opened, the sync still works (just without the speed-up).
@@ -972,16 +1063,20 @@ function switchSheet(sheet) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.sheet === sheet));
   const formWrapper = document.getElementById('form-wrapper');
   const balSection = document.getElementById('balance-section');
+  const anSection = document.getElementById('analysis-section');
 
-  if (sheet === 'Balances') {
+  // Balances and Analysis are views: they hide the entry form but leave it as it was
+  if (sheet === 'Balances' || sheet === 'Analysis') {
     formWrapper.style.display = 'none';
-    balSection.style.display = '';
-    loadBalances();
+    balSection.style.display = sheet === 'Balances' ? '' : 'none';
+    anSection.style.display = sheet === 'Analysis' ? '' : 'none';
+    if (sheet === 'Balances') loadBalances(); else loadAnalysis();
     return;
   }
 
   formWrapper.style.display = '';
   balSection.style.display = 'none';
+  anSection.style.display = 'none';
   // Back to the table the form is already on (e.g. after checking Balances): keep everything, favorite included
   if (sheet === formSheet) return;
   // Different table: a favorite's entry doesn't carry over (its method and linked rows belong to the old table)
@@ -1319,7 +1414,7 @@ let isSyncing = false;
 let writesInFlight = 0;
 let authBlocked = false;
 
-function busySending() { return isSyncing || writesInFlight > 0; }
+function busySending() { return isSyncing || writesInFlight > 0 || changingSheet; }
 
 function safeUpdate() {
   if (busySending()) return showToast('Sending to Excel — wait until it finishes', 'error');
@@ -1331,14 +1426,19 @@ window.addEventListener('beforeunload', e => {
 });
 
 function confirmQueueItem(idx) {
+  // Mid-sync the list on screen can be out of step with the queue, so the wrong row could be un-flagged
+  if (isSyncing) return showToast('Wait for sync to finish', 'error');
+  const item = queue[idx];
+  if (!item || !item.uncertain) return;
   if (!confirm('Only do this if you checked Excel and this row is NOT there. Send it on the next sync?')) return;
-  delete queue[idx].uncertain;
+  delete item.uncertain;
   saveQueue();
   renderQueueReview();
 }
 
 async function syncQueue() {
   if (isSyncing) return;
+  if (changingSheet) return showToast('Wait until the new month is set up', 'error');
   const pending = queue.filter(i => !i.uncertain);
   if (pending.length === 0) {
     if (queue.length) showToast('Review the ⚠ items in pending first', 'error');
@@ -1382,7 +1482,7 @@ async function syncQueue() {
   syncBadge.classList.remove('syncing'); syncBadge.textContent = '⇪ sync';
   isSyncing = false;
   renderQueueReview();
-  if (balanceCache && !authBlocked) loadBalances(); // refreshing would redirect to sign-in and hide the message
+  if (!authBlocked) refreshBalances(); // (when sign-in expired, refreshing would redirect and hide the message)
   if (authBlocked) showToast('Sign-in expired — sign in, then sync again', 'error');
   else if (failedCount === 0 && unsureCount === 0) showToast('✓ All synced', 'success');
   else showToast([
@@ -1403,7 +1503,7 @@ async function commitRows(rows, label) {
     rows.forEach((r, i) => (r.group = { id, i: i + 1, n: rows.length }));
   }
   const signedIn = !!msalInstance && msalInstance.getAllAccounts().length > 0;
-  if (!navigator.onLine || !signedIn || queueMode) {
+  if (!navigator.onLine || !signedIn || queueMode || changingSheet) {
     rows.forEach(r => queue.push(r)); saveQueue();
     const why = !navigator.onLine ? 'offline, will sync later' : !signedIn ? 'sign in to sync' : `${queue.length} pending`;
     showToast(`✓ Queued — ${why}`, 'success');
@@ -1423,7 +1523,7 @@ async function commitRows(rows, label) {
       const rest = batches.slice(b).flatMap(x => x.items);
       const added = rows.length - rest.length;
       rest.forEach(r => queue.push(r)); saveQueue();
-      if (added > 0 && balanceCache) setTimeout(loadBalances, 1000);
+      if (added > 0) setTimeout(refreshBalances, 1000);
       showToast(status === 'unsure'
         ? '⚠ Excel didn\'t confirm — check Excel, then review pending'
         : `✓ ${added} added, ${rest.length} queued`, status === 'unsure' ? 'error' : 'success');
@@ -1431,7 +1531,7 @@ async function commitRows(rows, label) {
     }
   }
   showToast(`✓ Added ${label}`, 'success');
-  if (balanceCache) setTimeout(loadBalances, 1000);
+  setTimeout(refreshBalances, 1000);
   return true;
 }
 
@@ -1514,7 +1614,8 @@ function resetForm() {
 
 // ── Form Draft (preserves unsaved input across the sign-in redirect) ──────────
 
-function saveFormDraft() {
+// The entry form as an object (null when it's empty)
+function formSnapshot() {
   const draft = {
     sheet: currentSheet,
     date: document.getElementById('f-date').value,
@@ -1531,12 +1632,16 @@ function saveFormDraft() {
     sub2: document.getElementById('f-sub2').value,
     sub3: document.getElementById('f-sub3').value,
     remarks: document.getElementById('f-remarks').value,
-    activeFav
+    favLabel: activeFav !== null && favorites[activeFav] ? favorites[activeFav].label : null
   };
   const hasInput = ['cost','venue','activities','method','category','sub2','sub3','remarks','methodCustom','categoryCustom','subCustom']
     .some(k => String(draft[k] || '').trim() !== '');
-  if (!hasInput) { localStorage.removeItem('cf_draft'); return; }
-  localStorage.setItem('cf_draft', JSON.stringify(draft));
+  return hasInput ? draft : null;
+}
+
+function saveFormDraft() {
+  const draft = formSnapshot();
+  if (draft) localStorage.setItem('cf_draft', JSON.stringify(draft)); else localStorage.removeItem('cf_draft');
 }
 
 function restoreFormDraft() {
@@ -1545,9 +1650,13 @@ function restoreFormDraft() {
   localStorage.removeItem('cf_draft');
   let draft;
   try { draft = JSON.parse(raw); } catch (e) { return; }
-  if (!draft || draft.sheet === 'Balances') return;
+  if (!draft || !FORM_SHEETS.includes(draft.sheet)) return;
+  applyFormSnapshot(draft);
+  showToast('Restored your unsaved entry', 'success');
+}
 
-  switchSheet(draft.sheet || 'Credit');
+function applyFormSnapshot(draft) {
+  switchSheet(draft.sheet);
 
   document.getElementById('f-date').value = draft.date || document.getElementById('f-date').value;
   document.getElementById('f-venue').value = draft.venue || '';
@@ -1587,14 +1696,14 @@ function restoreFormDraft() {
   document.getElementById('cost-sign').textContent = costNegative ? '−' : '+';
   document.getElementById('cost-sign').classList.toggle('negative', costNegative);
 
-  if (typeof draft.activeFav === 'number' && favorites[draft.activeFav]) {
-    activeFav = draft.activeFav;
-    const chip = document.querySelector(`.fav-chip[data-idx="${draft.activeFav}"]`);
+  // The favorite is found again by name (its position can change when the list is reloaded)
+  const idx = draft.favLabel ? favorites.findIndex(f => f.label === draft.favLabel) : -1;
+  if (idx !== -1) {
+    activeFav = idx;
+    const chip = document.querySelector(`.fav-chip[data-idx="${idx}"]`);
     if (chip) chip.classList.add('active');
-    if (favorites[activeFav].autoFillCol) showPayAmt(true); // keeps your restored amount
+    if (favorites[idx].autoFillCol) showPayAmt(true); // keeps your restored amount
   }
-
-  showToast('Restored your unsaved entry', 'success');
 }
 
 // ── History ───────────────────────────────────────────────────────────────────
@@ -1613,7 +1722,7 @@ function openConfig() {
   document.getElementById('cfg-client-id').value = localStorage.getItem('cf_client_id') || '';
   document.getElementById('cfg-file-path').value = localStorage.getItem('cf_file_path') || '';
   Object.keys(SHEETS).forEach(k => (document.getElementById(`cfg-${k.toLowerCase()}-table`).value = localStorage.getItem(`cf_table_${k.toLowerCase()}`) || ''));
-  renderCatManager(); renderFavManager();
+  renderConfigStatus();
   document.getElementById('config-panel').classList.add('open');
 }
 function closeConfig() { document.getElementById('config-panel').classList.remove('open'); }
@@ -1634,74 +1743,7 @@ function saveConfig() {
   setTimeout(closeConfig, 600);
 }
 
-// ── Favorites Manager ─────────────────────────────────────────────────────────
-
-function renderFavManager() {
-  document.getElementById('fav-manager').innerHTML = favorites.map((f, i) => `
-    <div class="fav-manager-item"><div style="flex:1"><div class="fav-manager-label">${escHtml(f.label)}</div><div class="fav-manager-detail">${escHtml(f.sheet)} · ${escHtml(f.method)} · ${f.cost < 0 ? '−' : ''}$${fmtMoney(f.cost)}</div></div>
-    <button class="fav-manager-edit" onclick="editFav(${i})">edit</button><button class="cat-delete" onclick="deleteFav(${i})">✕</button></div>
-  `).join('');
-}
-
-function editFav(i) {
-  const f = favorites[i];
-  const label = prompt('Label:', f.label); if (label === null) return;
-  const venue = prompt('Venue:', f.venue); if (venue === null) return;
-  const activities = prompt('Activities:', f.activities); if (activities === null) return;
-  const method = prompt('Method:', f.method); if (method === null) return;
-  const category = prompt('Category:', f.category); if (category === null) return;
-  const sub = prompt('Sub:', f.sub); if (sub === null) return;
-  const costStr = prompt('Cost (0 for variable):', f.cost); if (costStr === null) return;
-  const sheetIn = prompt('Sheet (Cash/Credit):', f.sheet); if (sheetIn === null) return;
-  const sheet = FORM_SHEETS.find(s => s.toLowerCase() === sheetIn.trim().toLowerCase());
-  if (!sheet) return showToast('Sheet must be Cash or Credit — not saved', 'error');
-  favorites[i] = { ...f, label, venue, activities, method, category, sub, cost: parseFloat(costStr) || 0, sheet };
-  saveFavorites(); renderFavManager(); renderFavChips(); showToast(`"${label}" updated`, 'success');
-}
-
-function deleteFav(i) {
-  if (!confirm(`Delete "${favorites[i].label}"?`)) return;
-  const deleted = readJSON('cf_fav_deleted', []);
-  deleted.push(favorites[i].label);
-  localStorage.setItem('cf_fav_deleted', JSON.stringify(deleted));
-  favorites.splice(i, 1); saveFavorites(); renderFavManager(); renderFavChips(); showToast('Deleted', 'success');
-}
-
-// ── Category Manager ──────────────────────────────────────────────────────────
-
-let expandedCat = null;
-
-function renderCatManager() {
-  document.getElementById('cat-manager').innerHTML = Object.entries(catSub).map(([cat, subs]) => `
-    <div><div class="cat-row ${expandedCat === cat ? 'expanded' : ''}" onclick="toggleCat('${escAttr(cat)}')">
-      <span class="cat-row-name">${escHtml(cat)}</span><span style="font-family:var(--mono);font-size:10px;color:var(--text-muted)">${subs.length} sub${subs.length !== 1 ? 's' : ''}</span>
-      <span class="cat-row-chevron">▶</span><button class="cat-delete" onclick="event.stopPropagation();deleteCategory('${escAttr(cat)}')">✕</button>
-    </div><div class="sub-panel ${expandedCat === cat ? 'open' : ''}" id="sub-panel-${escId(cat)}">
-      <div class="sub-tags">${subs.map(s => `<div class="sub-tag">${escHtml(s)}<button onclick="deleteSub('${escAttr(cat)}','${escAttr(s)}')">✕</button></div>`).join('')}</div>
-      <div class="sub-add-row"><input type="text" placeholder="New sub…" id="sub-input-${escId(cat)}" onkeydown="if(event.key==='Enter')addSub('${escAttr(cat)}')"><button class="btn-add-sub" onclick="addSub('${escAttr(cat)}')">+ Add</button></div>
-    </div></div>
-  `).join('');
-}
-
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function escAttr(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
-function escId(s) { return String(s).replace(/[^a-zA-Z0-9]/g, '_'); }
-
-function toggleCat(cat) { expandedCat = expandedCat === cat ? null : cat; renderCatManager(); if (expandedCat) { const i = document.getElementById(`sub-input-${escId(cat)}`); if (i) setTimeout(() => i.focus(), 50); } }
-
-function addCategory() {
-  const input = document.getElementById('new-cat-input'); const name = input.value.trim();
-  if (!name) return; if (catSub[name]) { showToast('Already exists', 'error'); return; }
-  catSub[name] = []; saveCatSub(); buildCategoryDropdown(); input.value = ''; expandedCat = name; renderCatManager(); showToast(`"${name}" added`, 'success');
-}
-function deleteCategory(cat) { if (!confirm(`Delete "${cat}"?`)) return; delete catSub[cat]; if (expandedCat === cat) expandedCat = null; saveCatSub(); buildCategoryDropdown(); renderCatManager(); showToast(`"${cat}" deleted`, 'success'); }
-
-function addSub(cat) {
-  const input = document.getElementById(`sub-input-${escId(cat)}`); const name = input.value.trim();
-  if (!name) return; if (catSub[cat].includes(name)) { showToast('Already exists', 'error'); return; }
-  catSub[cat].push(name); saveCatSub(); buildCategoryDropdown(); input.value = ''; renderCatManager(); showToast(`"${name}" added to ${cat}`, 'success');
-}
-function deleteSub(cat, sub) { catSub[cat] = catSub[cat].filter(s => s !== sub); saveCatSub(); buildCategoryDropdown(); renderCatManager(); }
 
 // ── Balance Dashboard ──────────────────────────────────────────────────────
 
@@ -1831,6 +1873,11 @@ async function loadBalances() {
     document.getElementById('balance-main').innerHTML = '<div class="bal-loading">Sign in to view balances</div>';
     return;
   }
+  if (!navigator.onLine) {
+    if (!balanceCache) document.getElementById('balance-main').innerHTML = '<div class="bal-loading">Offline — balances need a connection</div>';
+    else showToast('Offline — showing the last balances loaded', 'error');
+    return;
+  }
   document.getElementById('balance-main').innerHTML = '<div class="bal-loading">Loading…</div>';
 
   try {
@@ -1844,6 +1891,7 @@ async function loadBalances() {
       getFutureSums('Retire').catch(() => null),
       getTravel().catch(() => [])
     ]);
+    if (!cashRow && !creditRow) throw new Error('no data');
 
     balanceCache = { Cash: cashRow, Credit: creditRow, Retire: retireRow };
     futureCache = { Cash: cashFuture, Credit: creditFuture, Retire: retireFuture };
@@ -1853,6 +1901,13 @@ async function loadBalances() {
   } catch (e) {
     document.getElementById('balance-main').innerHTML = '<div class="bal-loading">Failed to load</div>';
   }
+}
+
+// After rows are written: reload balances if they're on screen; otherwise just mark them out of date
+// (Balances reloads whenever it's opened, and Pay favorites refetch when stale)
+function refreshBalances() {
+  if (document.getElementById('balance-section').style.display !== 'none') loadBalances();
+  else balanceTs = 0;
 }
 
 // Old columns that stay in Excel but shouldn't show as balances
@@ -2013,45 +2068,239 @@ function setPayAmount(kind) {
   });
 }
 
-// ── Monthly (Cash) ───────────────────────────────────────────────────────────
-// Change fixed amounts here (rent, parking, family savings, defaults below).
+// ── Analysis ─────────────────────────────────────────────────────────────────
+// Shows what Excel's Analysis tab already calculated; nothing is computed here. The only thing it ever
+// changes in Excel is the month rollover, and only when you tap "Start <month>" (see startNewMonth).
+//   This month = the last row of AnalysisTable.
+//   Averages   = the AnalysisAvg table in Excel (label, number of months, then one value per column,
+//                matched to AnalysisTable's columns by header name),
+//                so changing the 12 / 24 in Excel changes the app.
+//   Rows shown = the "analysis.rows" setting: AnalysisTable column headers, comma-separated, in your order
+//                (e.g. "F&D, Groceries FD, Transport"). Without it: every category total.
+const ANALYSIS_NAME = 'AnalysisAvg';
+const ANALYSIS_SKIP = new Set(['year', 'month', 'date']);
+// Sub-category columns end in a two-letter code ("Groceries FD"); the code is dropped for display
+const anCode = /\s[A-Z]{2}$/;
+let analysisCache = null; // { headers, now, avgs: [{ label, values }], monthLabel, lastKey ('YYYY-MM' of the last row) }
+let analysisAll = false;
 
-const RENT = 1495, PARKING = 185;
-// Amounts that changed over time go by the Monthly page's month ('YYYY-MM'), so older pages keep the old amounts
-const familySavings = m => m >= '2026-11' ? 600 : 500;
-const atMonth = (v, m) => typeof v === 'function' ? v(m) : v;
+async function loadAnalysis() {
+  const main = document.getElementById('analysis-main');
+  const say = msg => { main.innerHTML = `<div class="bal-loading">${msg}</div>`; document.getElementById('an-all-toggle').style.display = 'none'; document.getElementById('an-note').textContent = ''; };
+  if (!msalInstance || msalInstance.getAllAccounts().length === 0) return say('Sign in to view analysis');
+  if (!navigator.onLine) { if (analysisCache) showToast('Offline — showing the last analysis loaded', 'error'); else say('Offline — analysis needs a connection'); return; }
+  if (!analysisCache) say('Loading…');
+  const token = await getToken();
+  const base = workbookBase();
+  if (!token || !base) return;
+  const get = path => fetch(`${base}/${path}?$select=values,columnIndex`, { headers: { 'Authorization': `Bearer ${token}` } })
+    .then(r => (r.ok ? r.json() : null)).catch(() => null);
+  const table = `tables/${encodeURIComponent(tableFor('Analysis'))}`;
+  // All three reads go out together. AnalysisAvg is a table of its own; a named range is the fallback.
+  let [head, last, avg] = await Promise.all([get(`${table}/headerRowRange`), get(`${table}/range/lastRow`), get(`tables/${ANALYSIS_NAME}/range`)]);
+  if (!head || !last || !head.values || !last.values) return say('Couldn’t read AnalysisTable');
+  if (!avg || !avg.values) avg = await get(`names/${ANALYSIS_NAME}/range`);
+  const headers = head.values[0].map(h => String(h ?? '').trim());
+  const now = last.values[0];
+  // Each average row: label, number of months, then the values → heading "12-mo avg" (or the label if no number).
+  // With its own header row (a table), values are matched to AnalysisTable's columns by header name, so the two
+  // can't drift apart. Without one (a plain named range), they're lined up by position on the sheet.
+  const low = v => String(v ?? '').trim().toLowerCase();
+  const known = new Set(headers.map(low).filter(Boolean));
+  const rows = avg && avg.values ? avg.values : [];
+  const headRow = rows.find(row => row.filter(c => known.has(low(c))).length >= 3);
+  const names = headRow ? headRow.map(low) : null;
+  const shift = names ? 0 : (avg ? avg.columnIndex - head.columnIndex : 0);
+  const avgs = rows.filter(row => row !== headRow).map(row => {
+    const n = parseFloat(row[1 - shift]);
+    return { label: isNaN(n) ? String(row[0 - shift] ?? '').trim() || 'Average' : `${n}-mo avg`,
+      values: headers.map((h, k) => (names ? row[names.indexOf(low(h))] : row[k - shift])) };
+  });
+  const at = n => now[headers.findIndex(h => h.toLowerCase() === n)];
+  const d = new Date(parseInt(at('year'), 10), parseInt(at('month'), 10) - 1, 1);
+  analysisCache = { headers, now, avgs, monthLabel: isNaN(d) ? 'This month' : monthName(monthKey(d)), lastKey: isNaN(d) ? null : monthKey(d) };
+  renderAnalysis();
+}
+
+function toggleAnalysisAll() { analysisAll = !analysisAll; renderAnalysis(); }
+
+// Rows to show: the base list, or every column in Excel's order (each category total first, its subs under it)
+function analysisRows(headers) {
+  const shown = h => h && !ANALYSIS_SKIP.has(h.toLowerCase());
+  if (!analysisAll) {
+    const want = cfgText('analysis.rows').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+    // Your list (a header ending in a code is a sub, shown indented); or, with no list, the category totals
+    return want.length
+      ? want.map(w => headers.findIndex(h => h.toLowerCase() === w)).filter(i => i !== -1).map(i => ({ i, sub: anCode.test(headers[i]) }))
+      : headers.map((h, i) => ({ i, sub: false })).filter(r => shown(headers[r.i]) && !anCode.test(headers[r.i]));
+  }
+  const rows = []; let subs = [];
+  headers.forEach((h, i) => {
+    if (!shown(h)) return;
+    if (anCode.test(h)) { subs.push({ i, sub: true }); return; }
+    rows.push({ i, sub: false }, ...subs); subs = [];
+  });
+  return rows.concat(subs);
+}
+
+function renderAnalysis() {
+  if (!analysisCache) return;
+  const { headers, now, avgs, monthLabel } = analysisCache;
+  const money = v => { const n = typeof v === 'number' ? v : parseFloat(v); return isNaN(n) ? '—' : `${n < 0 ? '−' : ''}$${fmtMoney(n)}`; };
+  const body = analysisRows(headers).map(({ i, sub }) => `<tr${sub ? ' class="an-sub"' : ''}><td>${escHtml(sub ? headers[i].replace(anCode, '') : headers[i])}</td><td class="an-now">${money(now[i])}</td>${avgs.map(a => `<td>${money(a.values[i])}</td>`).join('')}</tr>`).join('');
+  const { lastKey } = analysisCache, cur = monthKey(new Date());
+  const behind = lastKey && lastKey < cur
+    ? `<div class="an-new">Excel’s last row is still ${monthName(lastKey)}.<button onclick="startNewMonth()">Start ${monthName(cur)}</button></div>` : '';
+  document.getElementById('analysis-main').innerHTML = behind +
+    `<table class="an-table"><tr><th></th><th>${escHtml(monthLabel)}</th>${avgs.map(a => `<th>${escHtml(a.label)}</th>`).join('')}</tr>${body}</table>`;
+  document.getElementById('an-note').textContent = avgs.length ? 'From the Analysis tab in Excel · averages leave out this month'
+    : `No averages: make the Average rows a table named “${ANALYSIS_NAME}” in Excel to see them`;
+  const toggle = document.getElementById('an-all-toggle');
+  toggle.style.display = ''; toggle.classList.toggle('open', analysisAll);
+  toggle.innerHTML = `<span class="arrow">▶</span> ${analysisAll ? 'Show less' : 'Show all'}`;
+}
+
+// ── Analysis: start a new month ──────────────────────────────────────────────
+// Does in Excel what used to be done by hand at the start of a month. For each month that has ended:
+//   1. inserts a whole sheet row above the "green line" (the blank row just before the current month),
+//   2. fills it with the formulas of the row above (formulas only — typed values aren't duplicated),
+//      labelled with the month that just ended,
+//   3. moves the last row on to the next month.
+// Every row stays a formula. It stops without changing anything if the sheet isn't laid out as expected:
+// …, last finished month, blank row, current month — with Year and Month columns.
+const monthName = key => { const [y, m] = key.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }); };
+const nextMonth = key => { const [y, m] = key.split('-').map(Number); return monthKey(new Date(y, m, 1)); };
+// 0 → A, 25 → Z, 26 → AA
+const colName = i => { let s = ''; for (i++; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + (i - 1) % 26) + s; return s; };
+let changingSheet = false;
+
+async function startNewMonth() {
+  const cur = monthKey(new Date());
+  const from = analysisCache && analysisCache.lastKey;
+  if (!from || from >= cur) return;
+  if (busySending()) return showToast('Wait for sync to finish', 'error');
+  if (!navigator.onLine) return showToast('Offline — try again when connected', 'error');
+  const months = [];
+  for (let k = from; k < cur; k = nextMonth(k)) months.push(k); // every month that has ended since
+  if (months.length > 12) return showToast('More than a year behind — add those months in Excel', 'error');
+  if (!confirm(`This changes the Analysis sheet in Excel:\n\n• adds ${months.length === 1 ? 'a row' : `${months.length} rows`} above the green line for ${months.map(monthName).join(', ')}, with the formulas of the row above\n• sets the last row to ${monthName(cur)}\n\nClose the workbook first if it's open for editing. Continue?`)) return;
+
+  changingSheet = true;
+  let done = 0, blankRow = false, sessionId = null;
+  try {
+    const token = await getToken();
+    const base = workbookBase();
+    if (!token || !base) return;
+    sessionId = await openWorkbookSession();
+    const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+    if (sessionId) headers['workbook-session-id'] = sessionId;
+    const call = async (method, path, body) => {
+      const res = await fetch(`${base}/${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err?.error?.message || `Excel said ${res.status}`); }
+      return res.status === 204 ? null : res.json();
+    };
+    for (const month of months) {
+      const t = await call('GET', `tables/${encodeURIComponent(tableFor('Analysis'))}/range?$select=address,rowIndex,columnIndex,values`);
+      const head = t.values[0].map(h => String(h ?? '').trim().toLowerCase());
+      const yi = head.indexOf('year'), mi = head.indexOf('month'), n = t.values.length;
+      const keyOf = row => { const y = parseInt(row[yi], 10), m = parseInt(row[mi], 10); return y && m ? `${y}-${String(m).padStart(2, '0')}` : ''; };
+      const blank = v => v === '' || v == null;
+      // values[n-1] = current month, [n-2] = green line, [n-3] = the last finished month
+      if (yi < 0 || mi < 0 || n < 4 || keyOf(t.values[n - 1]) !== month || !blank(t.values[n - 2][yi]) || !blank(t.values[n - 2][mi])
+          || nextMonth(keyOf(t.values[n - 3]) || '0000-00') !== month) {
+        throw new Error('the sheet isn’t laid out as expected (finished months, a blank row, then the current month)');
+      }
+      const sheet = t.address.slice(0, t.address.lastIndexOf('!')).replace(/^'|'$/g, '').replace(/''/g, "'");
+      const ws = `worksheets/${encodeURIComponent(sheet)}`;
+      const green = t.rowIndex + n - 1; // the green line's row number on the sheet
+      // Copy across everything the sheet uses, so the check columns right of the table come along
+      const used = await call('GET', `${ws}/usedRange?$select=columnIndex,columnCount`);
+      const c1 = colName(used.columnIndex), c2 = colName(used.columnIndex + used.columnCount - 1);
+      const above = await call('GET', `${ws}/range(address='${c1}${green - 1}:${c2}${green - 1}')?$select=formulasR1C1`);
+      const [y, m] = month.split('-').map(Number);
+      const at = k => k + used.columnIndex - t.columnIndex; // position in the copied row → position in the table
+      const fill = above.formulasR1C1[0].map((f, k) => at(k) === yi ? y : at(k) === mi ? m : (typeof f === 'string' && f.startsWith('=') ? f : null));
+      await call('POST', `${ws}/range(address='${green}:${green}')/insert`, { shift: 'Down' });
+      blankRow = true;
+      await call('PATCH', `${ws}/range(address='${c1}${green}:${c2}${green}')`, { formulasR1C1: [fill] });
+      blankRow = false;
+      // The current month's row has moved down two (green line + the new row): relabel it, touching nothing else
+      const [ny, nm] = nextMonth(month).split('-').map(Number), last = green + 2;
+      await call('PATCH', `${ws}/range(address='${colName(t.columnIndex)}${last}:${colName(t.columnIndex + head.length - 1)}${last}')`,
+        { values: [head.map((h, k) => (k === yi ? ny : k === mi ? nm : null))] });
+      done++;
+    }
+    showToast(`✓ ${monthName(cur)} started in Excel`, 'success');
+  } catch (e) {
+    showToast(blankRow ? 'A blank row was added above the green line but couldn’t be filled. In Excel, delete it or copy the row above into it.'
+      : `${done ? `Added ${done} month${done > 1 ? 's' : ''}, then stopped` : 'Nothing was changed'}: ${e.message}`, 'error');
+  } finally {
+    closeWorkbookSession(sessionId);
+    changingSheet = false;
+    await loadAnalysis();
+  }
+}
+
+// ── Monthly (Cash) ───────────────────────────────────────────────────────────
+// The checklist and its logic are here. Every amount, name and label comes from AppSettings in Excel,
+// under "<item key>.<field>" (e.g. pay.amount, pay.venue), looked up for the page's month so that
+// older pages keep older values. To change one from a month on, add a row there with a new From.
 
 function mRow(venue, activities, method, category, sub, cost, remarks = '') {
   return { venue, activities, method, category, sub, sub2: '', sub3: '', cost: round2(cost), remarks };
 }
 
-// due: today | d22 (22nd) | eom (last day) | next1 / next2 (1st / 2nd of next month)
+// due:   today | d22 (22nd) | eom (last day) | next1 / next2 (1st / 2nd of next month)
+// texts: text settings the item needs (default label, venue, activities) — passed to rows() as t
+// nums:  number settings it can't work without · amount: "<key>.amount" pre-fills the field (optional)
+// parts: an item with several typed amounts — "<key>.<part>" is its label, "<key>.amount<n>" its default
 const MONTHLY_ITEMS = [
-  { key: 'gas',         label: 'CenterPoint gas',          due: 'today', rows: A => [mRow('CenterPoint Energy', 'Gas Bill (no autopay)', 'Checking', 'Utilities', 'Gas', A)] },
-  { key: 'internet',    label: 'Quantum Fiber',            due: 'd22',   def: 30,      rows: A => [mRow('Quantum Fiber', 'Monthly Internet (Up to 200 Mbps)', 'Checking', 'Utilities', 'Wifi', A)] },
-  { key: 'electric',    label: 'Xcel electric',            due: 'eom',   rows: A => [mRow('Xcel Energy', 'Electric Bill', 'Checking', 'Utilities', 'Electric', A)] },
-  { key: 'hsaEmployer', label: 'Carleton HSA contribution', due: 'eom',  def: 100,     rows: A => [mRow('Carleton', 'Carleton contribution', 'Optum', '', '', -A)] },
-  { key: 'hsaMine',     label: 'My HSA contribution',      due: 'eom',   def: m => m >= '2027-01' ? 275 : 266.66, rows: A => [mRow('Carleton', 'My contribution', 'Optum', 'HSA', '', -A)] },
-  { key: 'interest',    label: 'Optum interest',           due: 'eom',   rows: A => [mRow('Carleton', 'Interest', 'Optum', '', '', -A)] },
-  { key: 'pay',         label: 'Pay',                      due: 'eom',   def: 5689.33, rows: A => [mRow('Carleton', 'Pay', 'Checking', 'Pay', '', -A)] },
-  { key: 'weidner',     label: 'Weidner (bill total)',     due: 'next1', min: RENT + PARKING, rows: A => weidnerRows(A) },
-  { key: 'phone',       label: 'Auntie Theresa (phone)',   due: 'next1', def: 32,      rows: A => [mRow('Auntie Theresa', 'Phone bill (monthly Zelle)', 'Checking', 'Need', 'Phone', A)] },
-  { key: 'savings',     label: 'Savings (total)',          due: 'next2', def: m => m >= '2026-11' ? 2100 : undefined, min: familySavings, rows: (A, m) => [
-      mRow('Capital One', 'Savings', 'Checking', 'Savings', '', A),
-      mRow('Capital One', 'Savings (Family)', 'SavingsF', '', '', -familySavings(m)),
-      mRow('Capital One', 'Savings (Discretionary)', 'SavingsCO', '', '', -(A - familySavings(m)))] },
-  { key: 'fidelity',    label: 'Fidelity',                 due: 'next2', def: m => m >= '2026-11' ? 888.88 : 650, rows: A => [
-      mRow('Wells Fargo', 'Fidelity', 'Checking', 'Savings', '', A),
-      mRow('Fidelity', 'Fidelity', 'Fidelity', '', '', -A)] },
+  { key: 'gas',         due: 'today', rows: (A, m, t) => [mRow(t.venue, t.activities, 'Checking', 'Utilities', 'Gas', A)] },
+  { key: 'internet',    due: 'd22',   rows: (A, m, t) => [mRow(t.venue, t.activities, 'Checking', 'Utilities', 'Wifi', A)] },
+  { key: 'electric',    due: 'eom',   rows: (A, m, t) => [mRow(t.venue, t.activities, 'Checking', 'Utilities', 'Electric', A)] },
+  { key: 'hsaEmployer', due: 'eom',   rows: (A, m, t) => [mRow(t.venue, t.activities, 'Optum', '', '', -A)] },
+  { key: 'hsaMine',     due: 'eom',   rows: (A, m, t) => [mRow(t.venue, t.activities, 'Optum', 'HSA', '', -A)] },
+  { key: 'interest',    due: 'eom',   rows: (A, m, t) => [mRow(t.venue, t.activities, 'Optum', '', '', -A)] },
+  { key: 'pay',         due: 'eom',   rows: (A, m, t) => [mRow(t.venue, t.activities, 'Checking', 'Pay', '', -A)] },
+  // One bill → Rent + Parking + Sewer (whatever is left)
+  { key: 'rent',        due: 'next1', texts: ['label', 'venue'], nums: ['rent', 'parking'],
+    min: m => cfgNum('rent.rent', m) + cfgNum('rent.parking', m), rows: (A, m, t) => rentRows(A, m, t) },
+  { key: 'phone',       due: 'next1', rows: (A, m, t) => [mRow(t.venue, t.activities, 'Checking', 'Need', 'Phone', A)] },
+  // A typed total: Family gets its fixed amount, Discretionary the rest
+  { key: 'savings',     due: 'next2', label: 'Savings (total)', texts: [], nums: ['family'], min: m => cfgNum('savings.family', m),
+    rows: (A, m) => { const family = cfgNum('savings.family', m); return [
+      mRow(ACCOUNT_VENUE.SavingsCO, 'Savings', 'Checking', 'Savings', '', A),
+      mRow(ACCOUNT_VENUE.SavingsF, 'Savings (Family)', 'SavingsF', '', '', -family),
+      mRow(ACCOUNT_VENUE.SavingsCO, 'Savings (Discretionary)', 'SavingsCO', '', '', -(A - family))]; } },
+  { key: 'fidelity',    due: 'next2', label: 'Fidelity', texts: [], rows: A => [
+      mRow(ACCOUNT_VENUE.Checking, 'Fidelity', 'Checking', 'Savings', '', A),
+      mRow(ACCOUNT_VENUE.Fidelity, 'Fidelity', 'Fidelity', '', '', -A)] },
   // Goes to RetireTable. Two amounts; Date stays month end, "Received" (optional) goes in Remarks.
-  { key: 'retire',      label: 'TIAA 403(b)',              due: 'eom',   sheet: 'Retire', received: true,
-    parts: [{ label: 'Carleton', def: m => m >= '2026-11' ? 1000 : 833.34 }, { label: 'Personal', def: m => m >= '2026-11' ? 200 : 166.67 }],
-    rows: ([carleton, personal], remarks) => [
-      mRow('TIAA', '403(b) Carleton Contribution', '403b', '', '', -carleton, remarks),
-      mRow('TIAA', '403(b) Personal Contribution', '403b', '', '', -personal, remarks)] },
+  { key: 'retire',      due: 'eom',   sheet: 'Retire', received: true, parts: ['part1', 'part2'],
+    texts: ['label', 'venue', 'part1', 'part2', 'activities1', 'activities2'],
+    rows: ([first, second], remarks, t) => [
+      mRow(t.venue, t.activities1, '403b', '', '', -first, remarks),
+      mRow(t.venue, t.activities2, '403b', '', '', -second, remarks)] },
 ];
-// Default shown before an item is entered (multi-amount items: their sum)
-const monthlyDefault = (item, m) => item.parts ? round2(item.parts.reduce((s, p) => s + atMonth(p.def, m), 0)) : atMonth(item.def, m);
+const itemTexts = item => item.texts || ['label', 'venue', 'activities'];
+// The item's wording for a month: { label, venue, activities, … }
+function monthlyText(item, m) {
+  const t = { label: item.label };
+  itemTexts(item).forEach(f => (t[f] = cfgText(`${item.key}.${f}`, m)));
+  return t;
+}
+// Settings the item needs that AppSettings doesn't have (empty = ready to use)
+const monthlyMissing = (item, m) => [
+  ...itemTexts(item).filter(f => !cfgText(`${item.key}.${f}`, m)),
+  ...(item.nums || []).filter(f => cfgNum(`${item.key}.${f}`, m) === undefined)
+].map(f => `${item.key}.${f}`);
+// Amount(s) pre-filled before an item is entered: one per part, or the single "<key>.amount"
+const monthlyDefaults = (item, m) => item.parts ? item.parts.map((p, k) => cfgNum(`${item.key}.amount${k + 1}`, m)) : [cfgNum(`${item.key}.amount`, m)];
+// …and their total, for the collapsed line (undefined when nothing is set)
+function monthlyDefault(item, m) {
+  const d = monthlyDefaults(item, m).filter(v => v !== undefined);
+  return d.length ? round2(d.reduce((sum, v) => sum + v, 0)) : undefined;
+}
 
 let monthly = readJSON('cf_monthly', {});
 let viewMonth = null;
@@ -2059,6 +2308,17 @@ let expandedMonthly = null;
 let monthlyBusy = false;
 
 function saveMonthly() { localStorage.setItem('cf_monthly', JSON.stringify(monthly)); }
+// Earlier versions filed the rent bill under a different name: move that one unknown checkmark to "rent"
+function migrateMonthly() {
+  const known = new Set(MONTHLY_ITEMS.map(i => i.key));
+  let moved = false;
+  Object.values(monthly).forEach(rec => {
+    const other = Object.keys(rec).filter(k => !known.has(k));
+    if (other.length === 1 && !rec.rent) { rec.rent = rec[other[0]]; delete rec[other[0]]; moved = true; }
+  });
+  if (moved) saveMonthly();
+}
+migrateMonthly();
 function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
 function defaultMonthKey() {
   const t = new Date();
@@ -2077,21 +2337,24 @@ function shortDate(iso) {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-// Weidner: one bill → Rent + Parking + Sewer
-function weidnerRows(A) {
+// What's left of the rent bill after rent and parking (undefined until both are set in AppSettings)
+function sewerOf(bill, m) {
+  const rent = cfgNum('rent.rent', m), parking = cfgNum('rent.parking', m);
+  return rent === undefined || parking === undefined ? undefined : round2(bill - rent - parking);
+}
+function rentRows(A, m, t) {
   return [
-    mRow('Weidner', 'Rent', 'Checking', 'Home', 'Rent', RENT),
-    mRow('Weidner', 'Parking', 'Checking', 'Transport', 'Parking', PARKING, `Total Weidner payment = ${fmtMoney(A)}`),
-    mRow('Weidner', 'Sewer and water', 'Checking', 'Utilities', 'Others', round2(A - RENT - PARKING)),
+    mRow(t.venue, 'Rent', 'Checking', 'Home', 'Rent', cfgNum('rent.rent', m)),
+    mRow(t.venue, 'Parking', 'Checking', 'Transport', 'Parking', cfgNum('rent.parking', m), `Total ${t.venue} payment = ${fmtMoney(A)}`),
+    mRow(t.venue, 'Sewer and water', 'Checking', 'Utilities', 'Others', sewerOf(A, m)),
   ];
 }
 
 // The apartment totals need all four bills. Whichever is entered last carries them.
-const APARTMENT_KEYS = ['weidner', 'gas', 'electric', 'internet'];
-function apartmentTotals(amounts) {
-  const sewer = round2(amounts.weidner - RENT - PARKING);
-  const utilities = round2(amounts.gas + amounts.electric + sewer);
-  const total = round2(amounts.weidner + amounts.gas + amounts.electric + amounts.internet);
+const APARTMENT_KEYS = ['rent', 'gas', 'electric', 'internet'];
+function apartmentTotals(amounts, m) {
+  const utilities = round2(amounts.gas + amounts.electric + sewerOf(amounts.rent, m));
+  const total = round2(amounts.rent + amounts.gas + amounts.electric + amounts.internet);
   return `Gas + electric + sewer = ${fmtMoney(utilities)} · Total apartment paid = ${fmtMoney(total)}`;
 }
 
@@ -2115,8 +2378,8 @@ function renderMonthly() {
   const amt = k => (rec[k] ? rec[k].amount : null);
 
   // Running totals for the month (in app only)
-  const gas = amt('gas'), elec = amt('electric'), net = amt('internet'), bill = amt('weidner');
-  const sewer = bill !== null ? round2(bill - RENT - PARKING) : null;
+  const gas = amt('gas'), elec = amt('electric'), net = amt('internet'), bill = amt('rent');
+  const sewer = bill !== null ? sewerOf(bill, viewMonth) ?? null : null;
   const sum = arr => fmtMoney(arr.reduce((s, v) => s + (v || 0), 0));
   const pend = arr => (arr.some(v => v === null) ? ' (so far)' : '');
   const doneCount = MONTHLY_ITEMS.filter(i => rec[i.key]).length;
@@ -2125,17 +2388,27 @@ function renderMonthly() {
     `Gas + electric + sewer: $${sum([gas, elec, sewer])}${pend([gas, elec, sewer])}<br>` +
     `Total apartment paid: $${sum([bill, gas, elec, net])}${pend([bill, gas, elec, net])}`;
 
+  // Nothing read from Excel yet (new phone, or the table isn't there)
+  if (!Object.keys(config.settings).length) {
+    document.getElementById('monthly-list').innerHTML = '<div class="bal-loading">Monthly amounts and names come from the AppSettings table in Excel. Sign in, then ⚙ setup → Reload from Excel.</div>';
+    return;
+  }
   document.getElementById('monthly-list').innerHTML = MONTHLY_ITEMS.map(item => {
     const done = rec[item.key];
-    const open = expandedMonthly === item.key;
+    const t = monthlyText(item, viewMonth);
+    const missing = done ? [] : monthlyMissing(item, viewMonth);
+    const open = expandedMonthly === item.key && !missing.length;
+    const def = monthlyDefault(item, viewMonth);
     const meta = done ? `$${fmtMoney(done.amount)} · ${shortDate(done.date)}`
-                      : `${monthlyDefault(item, viewMonth) !== undefined ? '$' + fmtMoney(monthlyDefault(item, viewMonth)) + ' · ' : ''}due ${shortDate(monthDueDate(viewMonth, item.due))}`;
+               : missing.length ? `add to AppSettings: ${escHtml(missing.join(', '))}`
+               : `${def !== undefined ? '$' + fmtMoney(def) + ' · ' : ''}due ${shortDate(monthDueDate(viewMonth, item.due))}`;
     let body = '';
     if (open && done) {
       body = `<div class="m-body"><button class="m-undo" onclick="undoMonthly('${item.key}')">Undo checkmark (does not remove rows from Excel)</button></div>`;
     } else if (open) {
       const amt = (id, label, def) => `<div class="field"><label>${escHtml(label)}</label><input type="text" id="${id}" inputmode="decimal" placeholder="0.00" value="${def !== undefined ? fmtMoney(def) : ''}" onblur="formatMoneyInput(this)"></div>`;
-      const amounts = item.parts ? item.parts.map((p, k) => amt(`m-amt-${k}`, p.label, atMonth(p.def, viewMonth))).join('') : amt('m-amt', 'Amount', atMonth(item.def, viewMonth));
+      const defs = monthlyDefaults(item, viewMonth);
+      const amounts = item.parts ? item.parts.map((p, k) => amt(`m-amt-${k}`, t[p], defs[k])).join('') : amt('m-amt', 'Amount', defs[0]);
       body = `<div class="m-body">
         ${item.parts ? `<div class="field-row">${amounts}</div>` : ''}
         <div class="field-row">
@@ -2149,7 +2422,7 @@ function renderMonthly() {
     return `<div class="m-item${done ? ' done' : ''}${open ? ' open' : ''}">
       <div class="m-head" onclick="toggleMonthlyItem('${item.key}')">
         <span class="m-check">${done ? '✓' : '○'}</span>
-        <span class="m-title">${escHtml(item.label)}</span>
+        <span class="m-title">${escHtml(t.label || item.key)}</span>
         <span class="m-meta">${meta}</span>
       </div>${body}</div>`;
   }).join('');
@@ -2158,13 +2431,15 @@ function renderMonthly() {
 async function commitMonthly(key) {
   if (monthlyBusy) return;
   const item = MONTHLY_ITEMS.find(i => i.key === key);
+  if (monthlyMissing(item, viewMonth).length) return showToast('Add the missing settings in Excel first', 'error');
+  const t = monthlyText(item, viewMonth);
   const read = id => parseMoneyInput(document.getElementById(id).value);
   const parts = item.parts ? item.parts.map((p, k) => read(`m-amt-${k}`)) : null;
   const A = parts ? round2(parts.reduce((s, v) => s + v, 0)) : read('m-amt');
   const date = document.getElementById('m-date').value;
   if (isNaN(A) || A < 0 || (parts && parts.some(v => isNaN(v) || v < 0))) return showToast('Enter a valid amount', 'error');
   if (!date) return showToast('Date is required', 'error');
-  const min = atMonth(item.min, viewMonth);
+  const min = item.min ? item.min(viewMonth) : undefined;
   if (min !== undefined && A < min) return showToast(`Must be at least $${fmtMoney(min)}`, 'error');
   let remarks = '';
   if (item.received) {
@@ -2172,7 +2447,7 @@ async function commitMonthly(key) {
     if (r) { const [y, m, d] = r.split('-').map(Number); remarks = `Received ${new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`; }
   }
 
-  const partial = parts ? item.rows(parts, remarks) : item.rows(A, viewMonth);
+  const partial = parts ? item.rows(parts, remarks, t) : item.rows(A, viewMonth, t);
   // If this is the last of the four apartment bills, its row carries the month's totals
   if (APARTMENT_KEYS.includes(key)) {
     const rec = monthly[viewMonth] || {};
@@ -2180,8 +2455,9 @@ async function commitMonthly(key) {
     if (others.every(k => rec[k])) {
       const amounts = { [key]: A };
       others.forEach(k => (amounts[k] = rec[k].amount));
-      const target = key === 'weidner' ? partial[2] : partial[0]; // Weidner: Sewer row (Parking has the payment total)
-      target.remarks = target.remarks ? `${target.remarks} · ${apartmentTotals(amounts)}` : apartmentTotals(amounts);
+      const target = key === 'rent' ? partial[2] : partial[0]; // rent bill: its Sewer row (Parking has the payment total)
+      const totals = apartmentTotals(amounts, viewMonth);
+      target.remarks = target.remarks ? `${target.remarks} · ${totals}` : totals;
     }
   }
 
@@ -2189,14 +2465,14 @@ async function commitMonthly(key) {
   const sheet = item.sheet || 'Cash';
   const rows = partial.map(p => ({ sheet, payload: { date, ...p, inputted } }));
   monthlyBusy = true;
-  const ok = await commitRows(rows, `— ${item.label}`);
+  const ok = await commitRows(rows, `— ${t.label}`);
   monthlyBusy = false;
   if (!ok) return;
 
   monthly[viewMonth] = monthly[viewMonth] || {};
   monthly[viewMonth][key] = { amount: A, date };
   saveMonthly();
-  addHistory(item.label, rows[0].payload.cost < 0 ? -A : A, '', sheet, date);
+  addHistory(t.label, rows[0].payload.cost < 0 ? -A : A, '', sheet, date);
   expandedMonthly = null;
   renderMonthly();
 }
